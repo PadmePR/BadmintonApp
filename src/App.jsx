@@ -11,8 +11,11 @@ export default function App() {
   const [checking, setChecking] = useState(true)
   const [tab, setTab] = useState('players')
   const [players, setPlayers] = useState([])
-  const [savedMatch, setSavedMatch] = useState(null)
   const [profile, setProfile] = useState(null)
+
+  // Lifted match state — survives tab switches
+  const [matchResult, setMatchResult] = useState(null)
+  const [savedMeta, setSavedMeta] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -37,17 +40,22 @@ export default function App() {
         api.getAccount(),
       ])
       setPlayers(p || [])
-      setSavedMatch(m || null)
       setProfile(acct || null)
+      // Restore saved meta from DB (rounds data itself is regenerated fresh each session)
+      if (m?.meta) setSavedMeta(m.meta)
     } catch (e) { console.error('Load error:', e) }
   }
 
   async function logout() {
     await supabase.auth.signOut()
-    setUser(null); setPlayers([]); setSavedMatch(null); setProfile(null); setTab('players')
+    setUser(null)
+    setPlayers([])
+    setMatchResult(null)
+    setSavedMeta(null)
+    setProfile(null)
+    setTab('players')
   }
 
-  // Initials for the avatar icon — from username or email
   function getInitials() {
     if (profile?.username) {
       const parts = profile.username.trim().split(/\s+/)
@@ -75,7 +83,6 @@ export default function App() {
           <h1>Badminton Team Generator</h1>
           <div className="sub">Balanced doubles · simultaneous courts · fair rotation</div>
         </div>
-        {/* User avatar icon — replaces the old Account button */}
         <button
           className={`user-avatar-btn${tab === 'account' ? ' active' : ''}`}
           onClick={() => setTab(tab === 'account' ? 'players' : 'account')}
@@ -85,7 +92,6 @@ export default function App() {
         </button>
       </header>
 
-      {/* Tab bar — only Players and Matches */}
       <div className="tab-bar">
         {['players', 'matches'].map(t => (
           <button
@@ -108,15 +114,21 @@ export default function App() {
       {tab === 'matches' && (
         <MatchesTab
           players={players}
-          initialMatch={savedMatch}
-          onMatchSaved={(meta) => setSavedMatch(meta ? { meta } : null)}
+          result={matchResult}
+          setResult={setMatchResult}
+          savedMeta={savedMeta}
+          setSavedMeta={setSavedMeta}
+          onMatchSaved={(meta) => setSavedMeta(meta)}
         />
       )}
       {tab === 'account' && (
         <AccountTab
           profile={profile}
           onProfileUpdated={(updated) => setProfile(updated)}
-          onDeleted={() => { setUser(null); setPlayers([]); setSavedMatch(null); setProfile(null) }}
+          onDeleted={() => {
+            setUser(null); setPlayers([]); setMatchResult(null)
+            setSavedMeta(null); setProfile(null)
+          }}
           onLogout={logout}
         />
       )}
