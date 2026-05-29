@@ -12,8 +12,8 @@ export default function App() {
   const [tab, setTab] = useState('players')
   const [players, setPlayers] = useState([])
   const [savedMatch, setSavedMatch] = useState(null)
+  const [profile, setProfile] = useState(null)
 
-  // Check session on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -31,15 +31,32 @@ export default function App() {
 
   async function loadData() {
     try {
-      const [p, m] = await Promise.all([api.getPlayers(), api.getMatches()])
+      const [p, m, acct] = await Promise.all([
+        api.getPlayers(),
+        api.getMatches(),
+        api.getAccount(),
+      ])
       setPlayers(p || [])
       setSavedMatch(m || null)
+      setProfile(acct || null)
     } catch (e) { console.error('Load error:', e) }
   }
 
   async function logout() {
     await supabase.auth.signOut()
-    setUser(null); setPlayers([]); setSavedMatch(null); setTab('players')
+    setUser(null); setPlayers([]); setSavedMatch(null); setProfile(null); setTab('players')
+  }
+
+  // Initials for the avatar icon — from username or email
+  function getInitials() {
+    if (profile?.username) {
+      const parts = profile.username.trim().split(/\s+/)
+      return parts.length > 1
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : profile.username.slice(0, 2).toUpperCase()
+    }
+    if (user?.email) return user.email[0].toUpperCase()
+    return '?'
   }
 
   if (checking) return null
@@ -47,9 +64,6 @@ export default function App() {
 
   return (
     <div className="container" id="app">
-      {/* Print header */}
-      <div id="pdf-header-global" style={{ display: 'none' }} />
-
       <header>
         <div className="logo">
           <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
@@ -57,23 +71,29 @@ export default function App() {
             <path d="M12 9l6 12H6L12 9z"/>
           </svg>
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <h1>Badminton Team Generator</h1>
           <div className="sub">Balanced doubles · simultaneous courts · fair rotation</div>
         </div>
+        {/* User avatar icon — replaces the old Account button */}
+        <button
+          className={`user-avatar-btn${tab === 'account' ? ' active' : ''}`}
+          onClick={() => setTab(tab === 'account' ? 'players' : 'account')}
+          title="Account"
+        >
+          {getInitials()}
+        </button>
       </header>
 
-      {/* Top actions */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button className="btn-secondary" onClick={() => setTab('account')}>⚙ Account</button>
-        <button className="btn-secondary" onClick={logout}>Logout</button>
-      </div>
-
-      {/* Tab bar */}
+      {/* Tab bar — only Players and Matches */}
       <div className="tab-bar">
-        {['players', 'matches', 'account'].map((t, i) => (
-          <button key={t} className={`tab-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'players' ? 'Players' : t === 'matches' ? 'Matches' : 'Account'}
+        {['players', 'matches'].map(t => (
+          <button
+            key={t}
+            className={`tab-btn${tab === t ? ' active' : ''}`}
+            onClick={() => setTab(t)}
+          >
+            {t === 'players' ? 'Players' : 'Matches'}
           </button>
         ))}
       </div>
@@ -93,7 +113,12 @@ export default function App() {
         />
       )}
       {tab === 'account' && (
-        <AccountTab onDeleted={() => { setUser(null); setPlayers([]); setSavedMatch(null) }} />
+        <AccountTab
+          profile={profile}
+          onProfileUpdated={(updated) => setProfile(updated)}
+          onDeleted={() => { setUser(null); setPlayers([]); setSavedMatch(null); setProfile(null) }}
+          onLogout={logout}
+        />
       )}
     </div>
   )

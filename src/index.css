@@ -77,9 +77,19 @@ button { -webkit-appearance: none; appearance: none; touch-action: manipulation;
 .player-name { flex: 1; font-size: 14px; color: var(--text); }
 .skill-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; flex-shrink: 0; }
 .skill-num { font-size: 13px; font-weight: 600; color: var(--text-secondary); min-width: 20px; text-align: center; }
-.skill-editor { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.skill-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-medium); background: var(--bg); color: var(--text); font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; }
-.skill-btn:active { background: var(--bg-secondary); }
+.skill-editor { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.skill-num { font-size: 14px; font-weight: 700; color: var(--text); min-width: 18px; text-align: center; line-height: 1; }
+.skill-arrows { display: flex; flex-direction: column; gap: 1px; }
+.skill-arrow-btn {
+  width: 22px; height: 16px;
+  border: 1px solid var(--border-medium); border-radius: 4px;
+  background: var(--bg); color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0; line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+.skill-arrow-btn:hover { background: var(--bg-secondary); color: var(--text); }
+.skill-arrow-btn:active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 
 .btn-toggle { height: 28px; padding: 0 10px; border-radius: 20px; font-size: 12px; font-weight: 500; white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; border: 1px solid; }
 .btn-toggle.to-absent { color: #7a5c00; border-color: #d4a820; background: #fff8e0; }
@@ -184,3 +194,17 @@ button { -webkit-appearance: none; appearance: none; touch-action: manipulation;
   .courts-2 { grid-template-columns: repeat(2, 1fr) !important; }
   .courts-3 { grid-template-columns: repeat(3, 1fr) !important; }
 }
+
+/* User avatar icon in header */
+.user-avatar-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--bg-tertiary); color: var(--text);
+  border: 2px solid var(--border-medium);
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.user-avatar-btn:hover { background: var(--bg-secondary); border-color: var(--accent); }
+.user-avatar-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
