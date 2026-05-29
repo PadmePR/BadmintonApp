@@ -2,34 +2,92 @@ import { useState, useEffect } from 'react'
 import { api } from '../lib/api.js'
 import { supabase } from '../lib/supabase.js'
 
-export default function AccountTab({ onDeleted }) {
-  const [account, setAccount] = useState(null)
-  const [username, setUsername] = useState('')
+const SKILL_LABELS = {
+  1: 'Beginner', 2: 'Beginner', 3: 'Beginner',
+  4: 'Average', 5: 'Average', 6: 'Average',
+  7: 'Good', 8: 'Good',
+  9: 'Pro', 10: 'Expert'
+}
+
+function SkillPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          className="skill-btn"
+          onClick={() => onChange(Math.max(1, (value || 5) - 1))}
+          disabled={value <= 1}
+        >−</button>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>{value || '—'}</span>
+          {value && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>
+              {SKILL_LABELS[value]}
+            </span>
+          )}
+        </div>
+        <button
+          className="skill-btn"
+          onClick={() => onChange(Math.min(10, (value || 5) + 1))}
+          disabled={value >= 10}
+        >+</button>
+      </div>
+      {/* Visual bar */}
+      <div style={{ display: 'flex', gap: 3 }}>
+        {Array.from({ length: 10 }, (_, i) => (
+          <div
+            key={i}
+            onClick={() => onChange(i + 1)}
+            style={{
+              flex: 1, height: 6, borderRadius: 3, cursor: 'pointer',
+              background: value && i < value ? 'var(--accent)' : 'var(--bg-tertiary)',
+              transition: 'background 0.15s',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-tertiary)' }}>
+        <span>1 Beginner</span><span>5 Average</span><span>10 Expert</span>
+      </div>
+    </div>
+  )
+}
+
+export default function AccountTab({ profile: initialProfile, onProfileUpdated, onDeleted, onLogout }) {
+  const [profile, setProfile] = useState(initialProfile)
+  const [username, setUsername] = useState(initialProfile?.username || '')
+  const [skillLevel, setSkillLevel] = useState(initialProfile?.skill_level || 5)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [msg, setMsg] = useState({ text: '', error: false })
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Sync if profile loaded after mount
   useEffect(() => {
-    api.getAccount().then(data => {
-      setAccount(data)
-      setUsername(data.username || '')
-    }).catch(console.error)
-  }, [])
+    if (initialProfile) {
+      setProfile(initialProfile)
+      setUsername(initialProfile.username || '')
+      setSkillLevel(initialProfile.skill_level || 5)
+    }
+  }, [initialProfile])
 
   function notify(text, error = false) {
     setMsg({ text, error })
     setTimeout(() => setMsg({ text: '', error: false }), 4000)
   }
 
-  async function saveUsername() {
-    if (!username.trim()) return notify('Username cannot be empty.', true)
+  async function saveProfile() {
+    if (!username.trim()) return notify('Display name cannot be empty.', true)
     setLoading(true)
     try {
-      const updated = await api.updateAccount({ username: username.trim() })
-      setAccount(prev => ({ ...prev, username: updated.username }))
-      notify('Username updated.')
+      const updated = await api.updateAccount({
+        username: username.trim(),
+        skill_level: skillLevel,
+      })
+      setProfile(updated)
+      onProfileUpdated(updated)
+      notify('Profile saved.')
     } catch (e) { notify(e.message, true) }
     setLoading(false)
   }
@@ -42,7 +100,7 @@ export default function AccountTab({ onDeleted }) {
     try {
       await api.updateAccount({ password: newPassword })
       setNewPassword(''); setConfirmPassword('')
-      notify('Password changed.')
+      notify('Password changed successfully.')
     } catch (e) { notify(e.message, true) }
     setLoading(false)
   }
@@ -54,7 +112,6 @@ export default function AccountTab({ onDeleted }) {
     if (!confirmed) return
     const doubleCheck = window.prompt('Type DELETE to confirm:')
     if (doubleCheck !== 'DELETE') return notify('Account deletion cancelled.', true)
-
     setDeleting(true)
     try {
       await api.deleteAccount()
@@ -63,43 +120,69 @@ export default function AccountTab({ onDeleted }) {
     } catch (e) { notify(e.message, true); setDeleting(false) }
   }
 
-  if (!account) return <div style={{ padding: 20, color: 'var(--text-secondary)' }}>Loading…</div>
-
   return (
     <div>
-      {/* Profile */}
+
+      {/* Profile card */}
       <div className="card">
         <div className="card-title">Profile</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Signed in as <strong style={{ color: 'var(--text)' }}>{account.email}</strong>
-        </div>
+        {profile?.email && (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+            Signed in as <strong style={{ color: 'var(--text)' }}>{profile.email}</strong>
+          </div>
+        )}
+
         <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
           Display name
         </label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            className="count-input" style={{ flex: 1, width: 'auto', textAlign: 'left' }}
-            placeholder="Your name" value={username}
-            onChange={e => setUsername(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveUsername()}
-            maxLength={32}
-          />
-          <button className="btn-primary" onClick={saveUsername} disabled={loading}>
-            Save
-          </button>
-        </div>
+        <input
+          style={{
+            width: '100%', padding: '11px 12px', marginBottom: 20,
+            border: '1px solid var(--border-medium)', borderRadius: 'var(--radius)',
+            fontSize: 15, background: 'var(--bg)', color: 'var(--text)',
+            fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+          }}
+          placeholder="Your display name"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && saveProfile()}
+          maxLength={50}
+        />
+
+        {/* Skill level — stored for future team generation use */}
+        <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 10 }}>
+          My skill level
+          <span style={{
+            marginLeft: 8, fontSize: 11, color: 'var(--text-tertiary)',
+            background: 'var(--bg-tertiary)', padding: '2px 7px', borderRadius: 10,
+          }}>
+            used in team generation
+          </span>
+        </label>
+        <SkillPicker value={skillLevel} onChange={setSkillLevel} />
+
+        <button
+          className="btn-primary"
+          style={{ marginTop: 18, width: '100%' }}
+          onClick={saveProfile}
+          disabled={loading}
+        >
+          {loading ? 'Saving…' : 'Save profile'}
+        </button>
       </div>
 
-      {/* Password */}
+      {/* Password card */}
       <div className="card">
         <div className="card-title">Change password</div>
         <input
-          className="login-input" type="password" placeholder="New password (min 6 characters)"
+          className="login-input" type="password"
+          placeholder="New password (min 6 characters)"
           value={newPassword} onChange={e => setNewPassword(e.target.value)}
           style={{ marginBottom: 10 }}
         />
         <input
-          className="login-input" type="password" placeholder="Confirm new password"
+          className="login-input" type="password"
+          placeholder="Confirm new password"
           value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && changePassword()}
           style={{ marginBottom: 12 }}
@@ -112,8 +195,7 @@ export default function AccountTab({ onDeleted }) {
       {/* Status message */}
       {msg.text && (
         <div style={{
-          padding: '10px 14px', borderRadius: 'var(--radius)', fontSize: 13,
-          marginBottom: 16,
+          padding: '10px 14px', borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 16,
           background: msg.error ? '#FCEBEB' : '#EAF3DE',
           color: msg.error ? '#A32D2D' : '#27500A',
           border: `1px solid ${msg.error ? '#F09595' : '#97C459'}`,
@@ -121,6 +203,17 @@ export default function AccountTab({ onDeleted }) {
           {msg.text}
         </div>
       )}
+
+      {/* Logout */}
+      <div className="card">
+        <div className="card-title">Session</div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+          Sign out of your account on this device.
+        </p>
+        <button className="btn-secondary" onClick={onLogout} style={{ width: '100%' }}>
+          Log out
+        </button>
+      </div>
 
       {/* Danger zone */}
       <div className="card" style={{ borderColor: '#F09595' }}>
@@ -132,6 +225,7 @@ export default function AccountTab({ onDeleted }) {
           {deleting ? 'Deleting…' : 'Delete my account'}
         </button>
       </div>
+
     </div>
   )
 }
