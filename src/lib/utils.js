@@ -14,10 +14,11 @@ export function ini(n) {
 }
 
 export function sl(s) {
-  if (s <= 3) return { t: 'Beginner', bg: '#EAF3DE', fg: '#27500A' }
-  if (s <= 6) return { t: 'Average', bg: '#FAEEDA', fg: '#633806' }
+  if (s <= 3) return { t: 'Beg', bg: '#EAF3DE', fg: '#27500A' }
+  if (s <= 6) return { t: 'Avg', bg: '#FAEEDA', fg: '#633806' }
   if (s <= 8) return { t: 'Good', bg: '#E6F1FB', fg: '#0C447C' }
-  return { t: 'Pro', bg: '#EEEDFE', fg: '#3C3489' }
+  if (s <= 9) return { t: 'Pro', bg: '#EEEDFE', fg: '#3C3489' }
+  return { t: 'Exp', bg: '#EEEDFE', fg: '#3C3489' }
 }
 
 export function shuffle(arr) {
