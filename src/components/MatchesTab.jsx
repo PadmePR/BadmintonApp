@@ -92,37 +92,50 @@ function RoundBlock({ round, roundNum, matchNumStart, allPlayers }) {
   )
 }
 
-export default function MatchesTab({ players, initialMatch, onMatchSaved }) {
-  const [numRounds, setNumRounds] = useState(4)
-  const [result, setResult] = useState(null)
-  const [savedMeta, setSavedMeta] = useState(initialMatch?.meta || null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (initialMatch?.meta) setSavedMeta(initialMatch.meta)
-  }, [initialMatch])
+export default function MatchesTab({ players, result, setResult, savedMeta, setSavedMeta, onMatchSaved }) {
+  // Store rounds input as a raw string so the user can freely type without
+  // the value being clamped mid-keystroke (e.g. clearing "4" to type "10")
+  const [roundsInput, setRoundsInput] = useState(
+    savedMeta?.rounds ? String(savedMeta.rounds) : '4'
+  )
 
   const playing = players.filter(p => !p.absent)
 
+  // Parsed value used only when generating
+  function getParsedRounds() {
+    const n = parseInt(roundsInput, 10)
+    return isNaN(n) ? 4 : Math.max(1, Math.min(30, n))
+  }
+
+  function handleRoundsChange(e) {
+    // Allow free typing — only strip non-numeric characters
+    const raw = e.target.value.replace(/[^0-9]/g, '')
+    setRoundsInput(raw)
+  }
+
+  function handleRoundsBlur() {
+    // Clamp and normalise on blur so the field always shows a valid value
+    setRoundsInput(String(getParsedRounds()))
+  }
+
   async function generate() {
-    const res = generateRounds(players, numRounds)
+    const rounds = getParsedRounds()
+    setRoundsInput(String(rounds)) // normalise display
+    const res = generateRounds(players, rounds)
     if (!res) return
     setResult(res)
 
-    // Save to backend
     const meta = {
       date: new Date().toLocaleDateString(),
       players: res.totalPlayers,
-      rounds: numRounds,
+      rounds,
       courts: res.courts,
     }
-    setSaving(true)
     try {
       await api.saveMatches('__react__', meta)
       setSavedMeta(meta)
       onMatchSaved(meta)
     } catch (e) { console.error(e) }
-    setSaving(false)
   }
 
   async function clearMatches() {
@@ -135,11 +148,9 @@ export default function MatchesTab({ players, initialMatch, onMatchSaved }) {
     } catch (e) { alert(e.message) }
   }
 
-  function exportPDF() {
-    window.print()
-  }
+  function exportPDF() { window.print() }
 
-  // Count match numbers globally
+  // Global match numbering across rounds
   let matchCounter = 1
   const matchStarts = result?.rounds.map(r => {
     const start = matchCounter
@@ -168,12 +179,16 @@ export default function MatchesTab({ players, initialMatch, onMatchSaved }) {
 
       <div className="gen-controls">
         <label htmlFor="match-count">Rounds</label>
-        <input type="number" id="match-count" className="count-input"
-          value={numRounds} min={1} max={30}
-          onChange={e => setNumRounds(Math.max(1, Math.min(30, Number(e.target.value) || 4)))} />
+        <input
+          type="number" id="match-count" className="count-input"
+          value={roundsInput}
+          min={1} max={30}
+          onChange={handleRoundsChange}
+          onBlur={handleRoundsBlur}
+        />
         <div className="action-row">
           <button className="btn-primary" onClick={generate} disabled={playing.length < 4}>
-            {result ? 'Reshuffle' : 'Generate'}
+            {result ? 'Regenerate' : 'Generate'}
           </button>
           {result && (
             <>
@@ -201,13 +216,12 @@ export default function MatchesTab({ players, initialMatch, onMatchSaved }) {
         </div>
       )}
 
-      {savedMeta && !result && (
+      {savedMeta && (
         <div className="saved-banner">
-          Previous session saved on <strong>{savedMeta.date}</strong> &nbsp;·&nbsp;
+          Generated on <strong>{savedMeta.date}</strong> &nbsp;·&nbsp;
           {savedMeta.players} players &nbsp;·&nbsp;
           {savedMeta.rounds} round{savedMeta.rounds > 1 ? 's' : ''} &nbsp;·&nbsp;
           {savedMeta.courts} court{savedMeta.courts > 1 ? 's' : ''}
-          <br /><span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>Press Generate to create a new list.</span>
         </div>
       )}
 
