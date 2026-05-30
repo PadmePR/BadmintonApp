@@ -103,6 +103,8 @@ export default function AccountTab({ profile: initialProfile, onProfileUpdated, 
     if (tagStatus === 'taken') return notify('That user tag is already taken.', true)
     setLoading(true)
     try {
+      // Always refresh token before API calls to avoid stale session errors
+      await supabase.auth.refreshSession()
       const updated = await api.updateAccount({
         username: username.trim(),
         skill_level: skillLevel,
@@ -124,8 +126,13 @@ export default function AccountTab({ profile: initialProfile, onProfileUpdated, 
     if (newPassword !== confirmPw) return notify('Passwords do not match.', true)
     setLoading(true)
     try {
+      // Refresh session to ensure token is current before sending to backend
+      await supabase.auth.refreshSession()
       await api.updateAccount({ password: newPassword })
       setNewPassword(''); setConfirmPw('')
+      // Changing password invalidates the session — refresh it again so the
+      // user stays logged in without needing to sign in again
+      await supabase.auth.refreshSession()
       notify('Password changed successfully.')
     } catch (e) { notify(e.message, true) }
     setLoading(false)
