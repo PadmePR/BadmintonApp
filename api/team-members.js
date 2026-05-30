@@ -42,15 +42,17 @@ export default async function handler(req, res) {
     if (error) return res.status(500).json({ error: error.message })
 
     const isAdmin = membership.is_admin
-    // Non-admins only see present players (not absent, no skill details of others)
+    // Non-admins: see all members but with limited info
+    // - Present players: name + skill visible
+    // - Absent players: name visible, skill hidden (but still shown so user can see who's absent)
     const filtered = isAdmin
       ? data
       : data.map(m => ({
           id: m.id, team_id: m.team_id, name: m.name,
           absent: m.absent, is_admin: m.is_admin,
-          user_id: m.user_id === user.id ? m.user_id : null,
-          skill: m.absent ? null : m.skill, // hide skill of absent players for members
-        })).filter(m => !m.absent)
+          user_id: m.user_id === user.id ? m.user_id : null, // only expose own user_id
+          skill: m.absent ? null : m.skill, // hide skill of absent players
+        }))
 
     return res.status(200).json({ members: filtered, is_admin: isAdmin })
   }
