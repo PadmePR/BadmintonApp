@@ -134,7 +134,8 @@ export default function TeamMatchesTab({
       }))
       await api.saveTeamMatches(team.id, serialisedRounds, meta)
       // Realtime will push to other users; update local state directly
-      setResult({ ...res, rounds: serialisedRounds })
+      // Use the same shape applyMatchData produces
+      setResult({ rounds: serialisedRounds, courts: res.courts, sittingCount: res.sittingCount, totalPlayers: res.totalPlayers })
       setSavedMeta(meta)
     } catch (e) { alert('Failed to save matches: ' + e.message) }
     setSaving(false)
@@ -152,11 +153,12 @@ export default function TeamMatchesTab({
 
   // Global match numbering
   let matchCounter = 1
-  const matchStarts = result?.rounds?.map(r => {
+  const rounds = Array.isArray(result?.rounds) ? result.rounds : []
+  const matchStarts = rounds.map(r => {
     const s = matchCounter
-    matchCounter += r.matches.length
+    matchCounter += (r?.matches?.length || 0)
     return s
-  }) || []
+  })
 
   return (
     <div>
@@ -227,19 +229,25 @@ export default function TeamMatchesTab({
       )}
 
       {/* Rounds */}
-      {result?.rounds?.length > 0
-        ? result.rounds.map((round, i) => (
-            <RoundBlock key={i} round={round} roundNum={i + 1}
-              matchNumStart={matchStarts[i]} allMembers={members} />
+      {(() => {
+        const rounds = Array.isArray(result?.rounds) ? result.rounds : []
+        if (rounds.length > 0) {
+          return rounds.map((round, i) => (
+            round && round.matches ? (
+              <RoundBlock key={i} round={round} roundNum={i + 1}
+                matchNumStart={matchStarts[i]} allMembers={members} />
+            ) : null
           ))
-        : !savedMeta && (
+        }
+        if (!savedMeta) {
+          return (
             <div className="empty-state">
-              {isAdmin
-                ? 'No matches yet. Add players then Generate.'
-                : 'No matches generated yet.'}
+              {isAdmin ? 'No matches yet. Add players then Generate.' : 'No matches generated yet.'}
             </div>
           )
-      }
+        }
+        return null
+      })()}
     </div>
   )
 }

@@ -40,8 +40,14 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
 
   function applyMatchData(data) {
     if (!data) { setMatchResult(null); setSavedMeta(null); return }
-    if (data.rounds) setMatchResult(data.rounds)
-    if (data.meta)   setSavedMeta(data.meta)
+    // data.rounds is the serialised array from DB; wrap it into the shape
+    // TeamMatchesTab expects: { rounds: [...], courts, sittingCount }
+    if (data.rounds && Array.isArray(data.rounds)) {
+      const courts = data.meta?.courts ?? (data.rounds[0]?.courts || 1)
+      const sittingCount = data.rounds[0]?.sitting?.length ?? 0
+      setMatchResult({ rounds: data.rounds, courts, sittingCount, totalPlayers: data.meta?.players })
+    }
+    if (data.meta) setSavedMeta(data.meta)
   }
 
   // ── Supabase Realtime ──────────────────────────────────────────────────
@@ -71,8 +77,11 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
       }, (payload) => {
         if (payload.eventType === 'DELETE') {
           setMatchResult(null); setSavedMeta(null)
-        } else {
+        } else if (payload.new) {
           applyMatchData(payload.new)
+        } else {
+          // Realtime sometimes omits payload.new for large rows — re-fetch
+          api.getTeamMatches(team.id).then(applyMatchData).catch(console.error)
         }
         flashBadge('matches')
       })
