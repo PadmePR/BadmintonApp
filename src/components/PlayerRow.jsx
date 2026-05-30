@@ -27,8 +27,8 @@ export default function PlayerRow({ player, index, onChangeSkill, onToggleAbsent
         </div>
       </div>
       {player.absent
-        ? <button className="btn-toggle to-playing" onClick={() => onToggleAbsent(player.id)}>↑ Playing</button>
-        : <button className="btn-toggle to-absent" onClick={() => onToggleAbsent(player.id)}>↓ Absent</button>
+        ? <button className="btn-toggle to-playing" onClick={() => onToggleAbsent(player.id)}> ↑ </button>
+        : <button className="btn-toggle to-absent" onClick={() => onToggleAbsent(player.id)}> ↓ </button>
       }
       <button className="btn-remove" onClick={() => onRemove(player.id)}>×</button>
     </div>
