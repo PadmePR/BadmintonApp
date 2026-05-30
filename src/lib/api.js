@@ -2,7 +2,17 @@ import { supabase } from './supabase.js'
 
 async function getToken() {
   const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token || null
+  if (!session) return null
+
+  // If token expires within the next 60 seconds, refresh proactively
+  const expiresAt = session.expires_at // unix timestamp in seconds
+  const now = Math.floor(Date.now() / 1000)
+  if (expiresAt && expiresAt - now < 60) {
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    return refreshed?.session?.access_token || session.access_token
+  }
+
+  return session.access_token
 }
 
 async function apiFetch(path, options = {}) {
