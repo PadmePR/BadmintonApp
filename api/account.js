@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     }
 
     if (username !== undefined || skill_level !== undefined || user_tag !== undefined) {
-      const profileUpdates = { id: user.id, updated_at: new Date().toISOString() }
+      const profileUpdates = { id: user.id }
       if (username !== undefined) profileUpdates.username = username.trim()
       if (skill_level !== undefined) profileUpdates.skill_level = skill_level === null ? null : Number(skill_level)
       if (user_tag !== undefined) profileUpdates.user_tag = user_tag === '' ? null : user_tag
