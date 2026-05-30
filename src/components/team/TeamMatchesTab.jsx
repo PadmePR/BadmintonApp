@@ -11,46 +11,64 @@ function TeamCol({ team, allMembers }) {
         const c = col(idx < 0 ? i : idx)
         return (
           <div className="team-player" key={p.id}>
-            <div className="tp-avatar" style={{ background: c.bg, color: c.fg }}>{ini(p.name)}</div>
+            <div className="tp-avatar" style={{ background: c.bg, color: c.fg }}>
+              {ini(p.name || '?')}
+            </div>
             <div className="tp-name">{p.name}</div>
           </div>
         )
       })}
       <div className="team-footer">
         <span>Combined</span>
-        <span className="team-total-val">{team[0].skill + team[1].skill}/20</span>
+        <span className="team-total-val">
+          {(team[0]?.skill || 0) + (team[1]?.skill || 0)}/20
+        </span>
       </div>
     </div>
   )
 }
 
 function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
+  if (!round || !Array.isArray(round.matches)) return null
+  const sitting = round.sitting || []
   let matchNo = matchNumStart
+
   return (
     <div className="round-block">
       <div className="round-header">
         <span className="round-label">Round {roundNum}</span>
-        <span className="round-courts-badge">{round.courts} court{round.courts > 1 ? 's' : ''}</span>
-        {round.sitting.length > 0 && (
-          <span className="round-sitting-badge">{round.sitting.length} sitting out</span>
+        <span className="round-courts-badge">
+          {round.courts} court{round.courts > 1 ? 's' : ''}
+        </span>
+        {sitting.length > 0 && (
+          <span className="round-sitting-badge">{sitting.length} sitting out</span>
         )}
         <div className="round-divider" />
       </div>
-      <div className={`courts-grid courts-${Math.min(round.courts, 3)}`}>
+
+      <div className={`courts-grid courts-${Math.min(round.courts || 1, 3)}`}>
         {round.matches.map((match, ci) => {
-          const [t1, t2] = match
-          const diff = Math.abs((t1[0].skill + t1[1].skill) - (t2[0].skill + t2[1].skill))
-          const bal = Math.max(0, Math.round((1 - diff / 14) * 100))
-          const tag = diff === 0
+          if (!Array.isArray(match) || match.length < 2) return null
+          const t1 = Array.isArray(match[0]) ? match[0] : []
+          const t2 = Array.isArray(match[1]) ? match[1] : []
+          if (t1.length < 2 || t2.length < 2) return null
+
+          const sum1 = (t1[0]?.skill || 0) + (t1[1]?.skill || 0)
+          const sum2 = (t2[0]?.skill || 0) + (t2[1]?.skill || 0)
+          const diff = Math.abs(sum1 - sum2)
+          const bal  = Math.max(0, Math.round((1 - diff / 14) * 100))
+          const tag  = diff === 0
             ? <span className="tag tag-perfect">Balanced</span>
             : diff <= 1 ? <span className="tag tag-great">Near perfect</span>
             : diff <= 2 ? <span className="tag tag-ok">Close</span>
             : null
           const mn = matchNo++
+
           return (
             <div className="match-card" key={ci}>
               <div className="match-header">
-                <span className="match-num">Match {mn} · Court {ci + 1}</span>{tag}
+                <span className="match-num">Match {mn} · Court {ci + 1}</span>
+                {tag}
               </div>
               <div className="vs-row">
                 <TeamCol team={t1} allMembers={allMembers} />
@@ -70,18 +88,24 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
           )
         })}
       </div>
-      {round.sitting.length > 0 && (
+
+      {sitting.length > 0 && (
         <div className="sitting-out">
           <span className="sitting-label">Sitting out:</span>
           <div className="sitting-players">
-            {round.sitting.map((p, i) => {
+            {sitting.map((p, i) => {
+              if (!p) return null
               const idx = allMembers.findIndex(x => x.id === p.id)
-              const c = col(idx < 0 ? i : idx)
-              const lab = sl(p.skill)
+              const c   = col(idx < 0 ? i : idx)
+              const lab = sl(p.skill || 5)
               return (
-                <div className="sitting-chip" key={p.id}>
-                  <div className="sitting-av" style={{ background: c.bg, color: c.fg }}>{ini(p.name)}</div>
-                  <span className="sitting-nm">{p.name} <span style={{ color: lab.fg }}>{p.skill}</span></span>
+                <div className="sitting-chip" key={p.id || i}>
+                  <div className="sitting-av" style={{ background: c.bg, color: c.fg }}>
+                    {ini(p.name || '?')}
+                  </div>
+                  <span className="sitting-nm">
+                    {p.name} <span style={{ color: lab.fg }}>{p.skill}</span>
+                  </span>
                 </div>
               )
             })}
@@ -99,8 +123,10 @@ export default function TeamMatchesTab({
   const [roundsInput, setRoundsInput] = useState(
     savedMeta?.rounds ? String(savedMeta.rounds) : '4'
   )
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [genError, setGenError] = useState('')
 
+  // Only non-absent members play
   const playing = members.filter(m => !m.absent)
 
   function getParsedRounds() {
@@ -109,35 +135,48 @@ export default function TeamMatchesTab({
   }
 
   async function generate() {
-    const rounds = getParsedRounds()
-    setRoundsInput(String(rounds))
-    const res = generateRounds(members, rounds)
-    if (!res) return
+    setGenError('')
+    const numRounds = getParsedRounds()
+    setRoundsInput(String(numRounds))
 
-    // Save the full result to DB so all members see it
+    // Pass only playing (non-absent) members explicitly
+    const res = generateRounds(playing, numRounds)
+    if (!res) {
+      setGenError('Not enough playing players — need at least 4.')
+      return
+    }
+
     setSaving(true)
     const meta = {
       date: new Date().toLocaleDateString(),
       players: res.totalPlayers,
-      rounds,
+      rounds: numRounds,
       courts: res.courts,
     }
     try {
-      // Store rounds as plain serialisable data (member objects stripped to id/name/skill)
       const serialisedRounds = res.rounds.map(round => ({
         courts: round.courts,
-        sitting: round.sitting.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
-        matches: round.matches.map(([t1, t2]) => [
+        sitting: (round.sitting || []).map(p => ({
+          id: p.id, name: p.name, skill: p.skill,
+        })),
+        matches: (round.matches || []).map(([t1, t2]) => [
           t1.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
           t2.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
         ]),
       }))
+
       await api.saveTeamMatches(team.id, serialisedRounds, meta)
-      // Realtime will push to other users; update local state directly
-      // Use the same shape applyMatchData produces
-      setResult({ rounds: serialisedRounds, courts: res.courts, sittingCount: res.sittingCount, totalPlayers: res.totalPlayers })
+
+      setResult({
+        rounds: serialisedRounds,
+        courts: res.courts,
+        sittingCount: res.sittingCount,
+        totalPlayers: res.totalPlayers,
+      })
       setSavedMeta(meta)
-    } catch (e) { alert('Failed to save matches: ' + e.message) }
+    } catch (e) {
+      setGenError('Failed to save: ' + e.message)
+    }
     setSaving(false)
   }
 
@@ -145,24 +184,25 @@ export default function TeamMatchesTab({
     if (!confirm('Delete the match list for everyone in this team?')) return
     try {
       await api.deleteTeamMatches(team.id)
-      // Realtime will clear other users; clear local state too
       setResult(null)
       setSavedMeta(null)
     } catch (e) { alert(e.message) }
   }
 
-  // Global match numbering
+  // Global match numbering across all rounds
   let matchCounter = 1
-  const rounds = Array.isArray(result?.rounds) ? result.rounds : []
-  const matchStarts = rounds.map(r => {
+  const safeRounds = Array.isArray(result?.rounds) ? result.rounds : []
+  const matchStarts = safeRounds.map(r => {
     const s = matchCounter
     matchCounter += (r?.matches?.length || 0)
     return s
   })
 
+  const courts = result?.courts ?? savedMeta?.courts ?? 1
+
   return (
     <div>
-      {/* Member notice */}
+      {/* Member-only notice */}
       {!isAdmin && !result && (
         <div className="notice" style={{ display: 'block' }}>
           Waiting for an admin to generate matches.
@@ -202,23 +242,28 @@ export default function TeamMatchesTab({
               Need at least 4 playing players
             </div>
           )}
+          {genError && (
+            <div style={{ fontSize: 13, color: '#A32D2D', width: '100%' }}>{genError}</div>
+          )}
         </div>
       )}
 
       {/* Info bar */}
       {result && (
         <div className="courts-info-bar" style={{ marginBottom: 12 }}>
-          <span><strong>{result.courts ?? savedMeta?.courts}</strong> court{(result.courts ?? savedMeta?.courts) > 1 ? 's' : ''} at once</span>
+          <span><strong>{courts}</strong> court{courts > 1 ? 's' : ''} at once</span>
           <span className="sep">·</span>
-          <span><strong>{(result.courts ?? savedMeta?.courts) * 4}</strong> players per round</span>
-          {(result.sittingCount ?? 0) > 0
-            ? <><span className="sep">·</span><span><strong>{result.sittingCount}</strong> sit out per round</span></>
-            : <><span className="sep">·</span><span>Everyone plays every round</span></>
+          <span><strong>{courts * 4}</strong> players per round</span>
+          {(result.sittingCount || 0) > 0
+            ? <><span className="sep">·</span>
+                <span><strong>{result.sittingCount}</strong> sit out per round</span></>
+            : <><span className="sep">·</span>
+                <span>Everyone plays every round</span></>
           }
         </div>
       )}
 
-      {/* Saved meta banner */}
+      {/* Meta banner */}
       {savedMeta && (
         <div className="saved-banner">
           Generated on <strong>{savedMeta.date}</strong> &nbsp;·&nbsp;
@@ -228,26 +273,25 @@ export default function TeamMatchesTab({
         </div>
       )}
 
-      {/* Rounds */}
-      {(() => {
-        const rounds = Array.isArray(result?.rounds) ? result.rounds : []
-        if (rounds.length > 0) {
-          return rounds.map((round, i) => (
-            round && round.matches ? (
-              <RoundBlock key={i} round={round} roundNum={i + 1}
-                matchNumStart={matchStarts[i]} allMembers={members} />
-            ) : null
+      {/* Round blocks */}
+      {safeRounds.length > 0
+        ? safeRounds.map((round, i) => (
+            <RoundBlock
+              key={i}
+              round={round}
+              roundNum={i + 1}
+              matchNumStart={matchStarts[i]}
+              allMembers={members}
+            />
           ))
-        }
-        if (!savedMeta) {
-          return (
+        : !savedMeta && (
             <div className="empty-state">
-              {isAdmin ? 'No matches yet. Add players then Generate.' : 'No matches generated yet.'}
+              {isAdmin
+                ? 'No matches yet. Add players then Generate.'
+                : 'No matches generated yet.'}
             </div>
           )
-        }
-        return null
-      })()}
+      }
     </div>
   )
 }
