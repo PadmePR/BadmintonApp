@@ -58,8 +58,13 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
                 <TeamCol team={t2} allMembers={allMembers} />
               </div>
               <div className="balance-section">
-                <div className="balance-bar"><div className="balance-fill" style={{ width: `${bal}%` }} /></div>
-                <div className="balance-labels"><span>Balance</span><span className="balance-pct">{bal}%</span></div>
+                <div className="balance-bar">
+                  <div className="balance-fill" style={{ width: `${bal}%` }} />
+                </div>
+                <div className="balance-labels">
+                  <span>Balance</span>
+                  <span className="balance-pct">{bal}%</span>
+                </div>
               </div>
             </div>
           )
@@ -87,8 +92,14 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
   )
 }
 
-export default function TeamMatchesTab({ team, members, isAdmin, result, setResult, savedMeta, setSavedMeta }) {
-  const [roundsInput, setRoundsInput] = useState(savedMeta?.rounds ? String(savedMeta.rounds) : '4')
+export default function TeamMatchesTab({
+  team, members, isAdmin,
+  result, setResult, savedMeta, setSavedMeta,
+}) {
+  const [roundsInput, setRoundsInput] = useState(
+    savedMeta?.rounds ? String(savedMeta.rounds) : '4'
+  )
+  const [saving, setSaving] = useState(false)
 
   const playing = members.filter(m => !m.absent)
 
@@ -100,10 +111,11 @@ export default function TeamMatchesTab({ team, members, isAdmin, result, setResu
   async function generate() {
     const rounds = getParsedRounds()
     setRoundsInput(String(rounds))
-    // matchEngine expects players with .id and .skill
     const res = generateRounds(members, rounds)
     if (!res) return
-    setResult(res)
+
+    // Save the full result to DB so all members see it
+    setSaving(true)
     const meta = {
       date: new Date().toLocaleDateString(),
       players: res.totalPlayers,
@@ -111,46 +123,70 @@ export default function TeamMatchesTab({ team, members, isAdmin, result, setResu
       courts: res.courts,
     }
     try {
-      await api.saveTeamMatches(team.id, meta)
+      // Store rounds as plain serialisable data (member objects stripped to id/name/skill)
+      const serialisedRounds = res.rounds.map(round => ({
+        courts: round.courts,
+        sitting: round.sitting.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
+        matches: round.matches.map(([t1, t2]) => [
+          t1.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
+          t2.map(p => ({ id: p.id, name: p.name, skill: p.skill })),
+        ]),
+      }))
+      await api.saveTeamMatches(team.id, serialisedRounds, meta)
+      // Realtime will push to other users; update local state directly
+      setResult({ ...res, rounds: serialisedRounds })
       setSavedMeta(meta)
-    } catch (e) { console.error(e) }
+    } catch (e) { alert('Failed to save matches: ' + e.message) }
+    setSaving(false)
   }
 
   async function clearMatches() {
-    if (!confirm('Delete the saved match list?')) return
+    if (!confirm('Delete the match list for everyone in this team?')) return
     try {
       await api.deleteTeamMatches(team.id)
-      setResult(null); setSavedMeta(null)
+      // Realtime will clear other users; clear local state too
+      setResult(null)
+      setSavedMeta(null)
     } catch (e) { alert(e.message) }
   }
 
+  // Global match numbering
   let matchCounter = 1
-  const matchStarts = result?.rounds.map(r => {
-    const s = matchCounter; matchCounter += r.matches.length; return s
+  const matchStarts = result?.rounds?.map(r => {
+    const s = matchCounter
+    matchCounter += r.matches.length
+    return s
   }) || []
 
   return (
     <div>
+      {/* Member notice */}
       {!isAdmin && !result && (
         <div className="notice" style={{ display: 'block' }}>
           Waiting for an admin to generate matches.
         </div>
       )}
 
+      {/* Admin controls */}
       {isAdmin && (
         <div className="gen-controls">
           <label>Rounds</label>
-          <input type="number" className="count-input" value={roundsInput} min={1} max={30}
+          <input
+            type="number" className="count-input"
+            value={roundsInput} min={1} max={30}
             onChange={e => setRoundsInput(e.target.value.replace(/[^0-9]/g, ''))}
-            onBlur={() => setRoundsInput(String(getParsedRounds()))} />
+            onBlur={() => setRoundsInput(String(getParsedRounds()))}
+          />
           <div className="action-row">
-            <button className="btn-primary" onClick={generate} disabled={playing.length < 4}>
-              {result ? 'Regenerate' : 'Generate'}
+            <button className="btn-primary" onClick={generate}
+              disabled={playing.length < 4 || saving}>
+              {saving ? 'Saving…' : result ? 'Regenerate' : 'Generate'}
             </button>
             {result && (
               <>
                 <button className="btn-pdf" onClick={() => window.print()}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   </svg>
                   Save as PDF
@@ -159,25 +195,49 @@ export default function TeamMatchesTab({ team, members, isAdmin, result, setResu
               </>
             )}
           </div>
+          {playing.length < 4 && (
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', width: '100%' }}>
+              Need at least 4 playing players
+            </div>
+          )}
         </div>
       )}
 
+      {/* Info bar */}
+      {result && (
+        <div className="courts-info-bar" style={{ marginBottom: 12 }}>
+          <span><strong>{result.courts ?? savedMeta?.courts}</strong> court{(result.courts ?? savedMeta?.courts) > 1 ? 's' : ''} at once</span>
+          <span className="sep">·</span>
+          <span><strong>{(result.courts ?? savedMeta?.courts) * 4}</strong> players per round</span>
+          {(result.sittingCount ?? 0) > 0
+            ? <><span className="sep">·</span><span><strong>{result.sittingCount}</strong> sit out per round</span></>
+            : <><span className="sep">·</span><span>Everyone plays every round</span></>
+          }
+        </div>
+      )}
+
+      {/* Saved meta banner */}
       {savedMeta && (
         <div className="saved-banner">
           Generated on <strong>{savedMeta.date}</strong> &nbsp;·&nbsp;
           {savedMeta.players} players &nbsp;·&nbsp;
-          {savedMeta.rounds} round{savedMeta.rounds > 1 ? 's' : ''} &nbsp;·&nbsp;
-          {savedMeta.courts} court{savedMeta.courts > 1 ? 's' : ''}
+          {savedMeta.rounds} round{savedMeta.rounds !== 1 ? 's' : ''} &nbsp;·&nbsp;
+          {savedMeta.courts} court{savedMeta.courts !== 1 ? 's' : ''}
         </div>
       )}
 
-      {result
+      {/* Rounds */}
+      {result?.rounds?.length > 0
         ? result.rounds.map((round, i) => (
             <RoundBlock key={i} round={round} roundNum={i + 1}
               matchNumStart={matchStarts[i]} allMembers={members} />
           ))
-        : !savedMeta && isAdmin && (
-            <div className="empty-state">No matches yet. Add players then Generate.</div>
+        : !savedMeta && (
+            <div className="empty-state">
+              {isAdmin
+                ? 'No matches yet. Add players then Generate.'
+                : 'No matches generated yet.'}
+            </div>
           )
       }
     </div>

@@ -1,38 +1,99 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../../lib/supabase.js'
 import { api } from '../../lib/api.js'
 import TeamPlayersTab from './TeamPlayersTab.jsx'
 import TeamMatchesTab from './TeamMatchesTab.jsx'
 
 export default function TeamView({ team, currentUserId, onBack, onTeamUpdated }) {
-  const [tab, setTab]           = useState('players')
-  const [members, setMembers]   = useState([])
-  const [isAdmin, setIsAdmin]   = useState(false)
-  const [loading, setLoading]   = useState(true)
+  const [tab, setTab]               = useState('players')
+  const [members, setMembers]       = useState([])
+  const [isAdmin, setIsAdmin]       = useState(false)
+  const [loading, setLoading]       = useState(true)
   const [matchResult, setMatchResult] = useState(null)
-  const [savedMeta, setSavedMeta]     = useState(null)
-  const [editing, setEditing]   = useState(false)
-  const [newName, setNewName]   = useState(team.name)
+  const [savedMeta, setSavedMeta]   = useState(null)
+  const [editing, setEditing]       = useState(false)
+  const [newName, setNewName]       = useState(team.name)
+  const [syncBadge, setSyncBadge]   = useState(null) // 'players' | 'matches' | null
+  const channelRef = useRef(null)
 
   useEffect(() => {
-    loadMembers()
-    loadMatches()
+    loadAll()
+    subscribeRealtime()
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
   }, [team.id])
 
-  async function loadMembers() {
+  async function loadAll() {
     setLoading(true)
+    try {
+      const [{ members: m, is_admin }, matchData] = await Promise.all([
+        api.getMembers(team.id),
+        api.getTeamMatches(team.id),
+      ])
+      setMembers(m)
+      setIsAdmin(is_admin)
+      applyMatchData(matchData)
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
+
+  function applyMatchData(data) {
+    if (!data) { setMatchResult(null); setSavedMeta(null); return }
+    if (data.rounds) setMatchResult(data.rounds)
+    if (data.meta)   setSavedMeta(data.meta)
+  }
+
+  // ── Supabase Realtime ──────────────────────────────────────────────────
+  function subscribeRealtime() {
+    if (channelRef.current) supabase.removeChannel(channelRef.current)
+
+    const channel = supabase
+      .channel(`team-${team.id}`)
+
+      // team_members changes → reload members
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'team_members',
+        filter: `team_id=eq.${team.id}`,
+      }, () => {
+        reloadMembers()
+        flashBadge('players')
+      })
+
+      // team_matches changes → reload matches
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'team_matches',
+        filter: `team_id=eq.${team.id}`,
+      }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          setMatchResult(null); setSavedMeta(null)
+        } else {
+          applyMatchData(payload.new)
+        }
+        flashBadge('matches')
+      })
+
+      .subscribe()
+
+    channelRef.current = channel
+  }
+
+  async function reloadMembers() {
     try {
       const { members: m, is_admin } = await api.getMembers(team.id)
       setMembers(m)
       setIsAdmin(is_admin)
     } catch (e) { console.error(e) }
-    setLoading(false)
   }
 
-  async function loadMatches() {
-    try {
-      const m = await api.getTeamMatches(team.id)
-      if (m?.meta) setSavedMeta(m.meta)
-    } catch (e) { console.error(e) }
+  // Show a brief "synced" indicator on the tab that changed
+  function flashBadge(which) {
+    setSyncBadge(which)
+    setTimeout(() => setSyncBadge(null), 2500)
   }
 
   async function saveTeamName() {
@@ -45,7 +106,9 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
   }
 
   if (loading) return (
-    <div style={{ padding: 20, color: 'var(--text-secondary)', textAlign: 'center' }}>Loading…</div>
+    <div style={{ padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>
+      Loading team…
+    </div>
   )
 
   return (
@@ -53,23 +116,25 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
       {/* Team header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <button onClick={onBack} style={{
-          width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--border-medium)',
-          background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', flexShrink: 0,
+          width: 36, height: 36, borderRadius: '50%',
+          border: '1px solid var(--border-medium)', background: 'none',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
+            stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
+
         {editing ? (
           <div style={{ display: 'flex', gap: 8, flex: 1 }}>
             <input className="field-input" value={newName}
               onChange={e => setNewName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveTeamName(); if (e.key === 'Escape') setEditing(false) }}
               autoFocus style={{ flex: 1 }} />
-            <button className="btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={saveTeamName}>Save</button>
-            <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={() => setEditing(false)}>Cancel</button>
+            <button className="btn-primary" style={{ padding: '8px 14px', fontSize: 13 }}
+              onClick={saveTeamName}>Save</button>
+            <button className="btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }}
+              onClick={() => { setEditing(false); setNewName(team.name) }}>Cancel</button>
           </div>
         ) : (
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -100,11 +165,20 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
         )}
       </div>
 
-      {/* Tab bar */}
+      {/* Tab bar with sync indicator */}
       <div className="tab-bar">
         {['players', 'matches'].map(t => (
-          <button key={t} className={`tab-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+          <button key={t} className={`tab-btn${tab === t ? ' active' : ''}`}
+            onClick={() => setTab(t)}
+            style={{ position: 'relative' }}>
             {t === 'players' ? 'Players' : 'Matches'}
+            {syncBadge === t && tab !== t && (
+              <span style={{
+                position: 'absolute', top: 4, right: 4,
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#1D9E75',
+              }} />
+            )}
           </button>
         ))}
       </div>
