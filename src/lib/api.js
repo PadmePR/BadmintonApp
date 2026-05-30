@@ -31,19 +31,19 @@ export const api = {
   lookupByTag: (tag) => apiFetch(`/api/lookup?tag=${encodeURIComponent(tag.toLowerCase().trim())}`),
 
   // Teams
-  getTeams:    ()                     => apiFetch('/api/teams'),
-  createTeam:  (name)                 => apiFetch('/api/teams', { method: 'POST', body: { name } }),
-  renameTeam:  (team_id, name)        => apiFetch('/api/teams', { method: 'PUT',  body: { team_id, name } }),
-  deleteTeam:  (team_id)              => apiFetch('/api/teams', { method: 'DELETE', body: { team_id } }),
+  getTeams:   ()                  => apiFetch('/api/teams'),
+  createTeam: (name)              => apiFetch('/api/teams', { method: 'POST', body: { name } }),
+  renameTeam: (team_id, name)     => apiFetch('/api/teams', { method: 'PUT',  body: { team_id, name } }),
+  deleteTeam: (team_id)           => apiFetch('/api/teams', { method: 'DELETE', body: { team_id } }),
 
   // Team members
-  getMembers:    (team_id)             => apiFetch(`/api/team-members?team_id=${team_id}`),
-  addMember:     (body)                => apiFetch('/api/team-members', { method: 'POST', body }),
-  updateMember:  (body)                => apiFetch('/api/team-members', { method: 'PUT',  body }),
-  removeMember:  (id, team_id)         => apiFetch('/api/team-members', { method: 'DELETE', body: { id, team_id } }),
+  getMembers:   (team_id)         => apiFetch(`/api/team-members?team_id=${team_id}`),
+  addMember:    (body)            => apiFetch('/api/team-members', { method: 'POST', body }),
+  updateMember: (body)            => apiFetch('/api/team-members', { method: 'PUT',  body }),
+  removeMember: (id, team_id)     => apiFetch('/api/team-members', { method: 'DELETE', body: { id, team_id } }),
 
-  // Team matches
-  getTeamMatches:    (team_id)         => apiFetch(`/api/team-matches?team_id=${team_id}`),
-  saveTeamMatches:   (team_id, meta)   => apiFetch('/api/team-matches', { method: 'POST', body: { team_id, meta } }),
-  deleteTeamMatches: (team_id)         => apiFetch('/api/team-matches', { method: 'DELETE', body: { team_id } }),
+  // Team matches — now includes full rounds data
+  getTeamMatches:    (team_id)          => apiFetch(`/api/team-matches?team_id=${team_id}`),
+  saveTeamMatches:   (team_id, rounds, meta) => apiFetch('/api/team-matches', { method: 'POST', body: { team_id, rounds, meta } }),
+  deleteTeamMatches: (team_id)          => apiFetch('/api/team-matches', { method: 'DELETE', body: { team_id } }),
 }
