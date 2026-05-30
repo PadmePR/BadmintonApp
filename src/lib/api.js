@@ -33,8 +33,11 @@ export const api = {
   saveMatches: (html, meta) => apiFetch('/api/matches', { method: 'POST', body: { html, meta } }),
   deleteMatches: () => apiFetch('/api/matches', { method: 'DELETE' }),
 
-  // Account + profile (username, skill_level, password)
+  // Account + profile
   getAccount: () => apiFetch('/api/account'),
   updateAccount: (updates) => apiFetch('/api/account', { method: 'PUT', body: updates }),
   deleteAccount: () => apiFetch('/api/account', { method: 'DELETE' }),
+
+  // Tag lookup — search a user by their user_tag
+  lookupByTag: (tag) => apiFetch(`/api/lookup?tag=${encodeURIComponent(tag.toLowerCase().trim())}`),
 }
