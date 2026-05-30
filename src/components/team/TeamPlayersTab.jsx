@@ -2,15 +2,58 @@ import { useState } from 'react'
 import { api } from '../../lib/api.js'
 import { col, ini, sl } from '../../lib/utils.js'
 
+// ── Three-dot dropdown menu ─────────────────────────────────────────────────
+function RowMenu({ member, canManageAdmin, onRemove, onToggleAdmin, onClose }) {
+  return (
+    <>
+      {/* Backdrop to close on outside click */}
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, zIndex: 99,
+      }} />
+      <div style={{
+        position: 'absolute', right: 0, top: '110%', zIndex: 100,
+        background: 'var(--bg)', border: '1px solid var(--border-medium)',
+        borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+        minWidth: 160, overflow: 'hidden',
+      }}>
+        {canManageAdmin && (
+          <button onClick={onToggleAdmin} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            width: '100%', padding: '10px 14px', border: 'none',
+            background: 'none', cursor: 'pointer', fontSize: 13,
+            color: 'var(--text)', fontFamily: 'inherit', textAlign: 'left',
+          }}>
+            <span style={{ fontSize: 15 }}>{member.is_admin ? '🔽' : '🔼'}</span>
+            {member.is_admin ? 'Remove admin' : 'Make admin'}
+          </button>
+        )}
+        <button onClick={onRemove} style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          width: '100%', padding: '10px 14px', border: 'none',
+          background: 'none', cursor: 'pointer', fontSize: 13,
+          color: '#A32D2D', fontFamily: 'inherit', textAlign: 'left',
+          borderTop: canManageAdmin ? '1px solid var(--border)' : 'none',
+        }}>
+          <span style={{ fontSize: 15 }}>🗑️</span>
+          Delete player
+        </button>
+      </div>
+    </>
+  )
+}
+
 // ── Member row ──────────────────────────────────────────────────────────────
 function MemberRow({ member, index, isAdmin, isCreator, currentUserId, onUpdate, onRemove, onToggleAdmin }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const c = col(index)
   const lab = sl(member.skill)
   const isCurrentUser = member.user_id === currentUserId
   const canManageAdmin = isAdmin && member.user_id && !isCreator(member)
+  const showMenu = isAdmin && !isCreator(member)
 
   return (
-    <div className={`player-row${member.absent ? ' absent' : ''}`}>
+    <div className={`player-row${member.absent ? ' absent' : ''}`}
+      style={{ position: 'relative' }}>
       <div className="avatar" style={{ background: c.bg, color: c.fg }}>{ini(member.name)}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -55,27 +98,48 @@ function MemberRow({ member, index, isAdmin, isCreator, currentUserId, onUpdate,
               </button>
             </div>
           </div>
+          {/* Absent / Playing toggle — arrows only */}
           {member.absent
-            ? <button className="btn-toggle to-playing" onClick={() => onUpdate(member.id, { absent: false })}>↑ Playing</button>
-            : <button className="btn-toggle to-absent" onClick={() => onUpdate(member.id, { absent: true })}>↓ Absent</button>
+            ? <button className="btn-toggle to-playing" onClick={() => onUpdate(member.id, { absent: false })}
+                title="Mark as playing">↑</button>
+            : <button className="btn-toggle to-absent" onClick={() => onUpdate(member.id, { absent: true })}
+                title="Mark as absent">↓</button>
           }
         </>
       )}
 
-      {isAdmin && canManageAdmin && (
-        <button title={member.is_admin ? 'Remove admin' : 'Make admin'}
-          onClick={() => onToggleAdmin(member)}
+      {/* Three-dot menu button */}
+      {showMenu && (
+        <button
+          onClick={() => setMenuOpen(v => !v)}
           style={{
-            fontSize: 11, padding: '4px 8px', border: '1px solid var(--border-medium)',
-            borderRadius: 6, background: 'none', color: 'var(--text-secondary)',
-            cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
-          }}>
-          {member.is_admin ? '⬇ Admin' : '⬆ Admin'}
+            width: 28, height: 28, borderRadius: 6,
+            border: '1px solid var(--border-medium)',
+            background: menuOpen ? 'var(--bg-secondary)' : 'none',
+            cursor: 'pointer', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 3,
+            flexShrink: 0, padding: 0,
+          }}
+          title="More options"
+        >
+          {[0,1,2].map(i => (
+            <span key={i} style={{
+              width: 3.5, height: 3.5, borderRadius: '50%',
+              background: 'var(--text-secondary)', display: 'block',
+            }} />
+          ))}
         </button>
       )}
 
-      {isAdmin && !isCreator(member) && (
-        <button className="btn-remove" onClick={() => onRemove(member.id)}>×</button>
+      {/* Dropdown */}
+      {showMenu && menuOpen && (
+        <RowMenu
+          member={member}
+          canManageAdmin={canManageAdmin}
+          onRemove={() => { setMenuOpen(false); onRemove(member.id) }}
+          onToggleAdmin={() => { setMenuOpen(false); onToggleAdmin(member) }}
+          onClose={() => setMenuOpen(false)}
+        />
       )}
     </div>
   )
