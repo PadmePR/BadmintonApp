@@ -208,3 +208,17 @@ button { -webkit-appearance: none; appearance: none; touch-action: manipulation;
 }
 .user-avatar-btn:hover { background: var(--bg-secondary); border-color: var(--accent); }
 .user-avatar-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Reusable field styles used in AccountTab */
+.field-label {
+  font-size: 13px; color: var(--text-secondary);
+  display: block; margin-bottom: 6px; font-weight: 500;
+}
+.field-input {
+  width: 100%; padding: 11px 12px;
+  border: 1px solid var(--border-medium); border-radius: var(--radius);
+  font-size: 15px; background: var(--bg); color: var(--text);
+  font-family: inherit; outline: none; box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--accent); }
