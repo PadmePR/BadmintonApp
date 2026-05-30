@@ -2,58 +2,41 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase.js'
 import { api } from './lib/api.js'
 import Login from './components/Login.jsx'
-import PlayersTab from './components/PlayersTab.jsx'
-import MatchesTab from './components/MatchesTab.jsx'
 import AccountTab from './components/AccountTab.jsx'
+import TeamHome from './components/team/TeamHome.jsx'
+import TeamView from './components/team/TeamView.jsx'
 
 export default function App() {
-  const [user, setUser] = useState(null)
+  const [user, setUser]         = useState(null)
   const [checking, setChecking] = useState(true)
-  const [tab, setTab] = useState('players')
-  const [players, setPlayers] = useState([])
-  const [profile, setProfile] = useState(null)
-
-  // Lifted match state — survives tab switches
-  const [matchResult, setMatchResult] = useState(null)
-  const [savedMeta, setSavedMeta] = useState(null)
+  const [profile, setProfile]   = useState(null)
+  const [teams, setTeams]       = useState([])
+  const [activeTeam, setActiveTeam] = useState(null) // null = home
+  const [showAccount, setShowAccount] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        loadData()
-      }
+      if (session?.user) { setUser(session.user); loadInitial() }
       setChecking(false)
     })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user || null)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  async function loadData() {
+  async function loadInitial() {
     try {
-      const [p, m, acct] = await Promise.all([
-        api.getPlayers(),
-        api.getMatches(),
-        api.getAccount(),
-      ])
-      setPlayers(p || [])
+      const [acct, teamList] = await Promise.all([api.getAccount(), api.getTeams()])
       setProfile(acct || null)
-      // Restore saved meta from DB (rounds data itself is regenerated fresh each session)
-      if (m?.meta) setSavedMeta(m.meta)
-    } catch (e) { console.error('Load error:', e) }
+      setTeams(teamList || [])
+    } catch (e) { console.error(e) }
   }
 
   async function logout() {
     await supabase.auth.signOut()
-    setUser(null)
-    setPlayers([])
-    setMatchResult(null)
-    setSavedMeta(null)
-    setProfile(null)
-    setTab('players')
+    setUser(null); setProfile(null); setTeams([])
+    setActiveTeam(null); setShowAccount(false)
   }
 
   function getInitials() {
@@ -68,7 +51,7 @@ export default function App() {
   }
 
   if (checking) return null
-  if (!user) return <Login onLogin={() => { loadData(); setUser(true) }} />
+  if (!user) return <Login onLogin={() => { loadInitial(); setUser(true) }} />
 
   return (
     <div className="container" id="app">
@@ -84,52 +67,37 @@ export default function App() {
           <div className="sub">Balanced doubles · simultaneous courts · fair rotation</div>
         </div>
         <button
-          className={`user-avatar-btn${tab === 'account' ? ' active' : ''}`}
-          onClick={() => setTab(tab === 'account' ? 'players' : 'account')}
+          className={`user-avatar-btn${showAccount ? ' active' : ''}`}
+          onClick={() => { setShowAccount(v => !v); setActiveTeam(null) }}
           title="Account"
         >
           {getInitials()}
         </button>
       </header>
 
-      <div className="tab-bar">
-        {['players', 'matches'].map(t => (
-          <button
-            key={t}
-            className={`tab-btn${tab === t ? ' active' : ''}`}
-            onClick={() => setTab(t)}
-          >
-            {t === 'players' ? 'Players' : 'Matches'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'players' && (
-        <PlayersTab
-          players={players}
-          setPlayers={setPlayers}
-          onGenerate={() => setTab('matches')}
-        />
-      )}
-      {tab === 'matches' && (
-        <MatchesTab
-          players={players}
-          result={matchResult}
-          setResult={setMatchResult}
-          savedMeta={savedMeta}
-          setSavedMeta={setSavedMeta}
-          onMatchSaved={(meta) => setSavedMeta(meta)}
-        />
-      )}
-      {tab === 'account' && (
+      {showAccount ? (
         <AccountTab
           profile={profile}
-          onProfileUpdated={(updated) => setProfile(updated)}
-          onDeleted={() => {
-            setUser(null); setPlayers([]); setMatchResult(null)
-            setSavedMeta(null); setProfile(null)
-          }}
+          onProfileUpdated={setProfile}
+          onDeleted={() => { setUser(null); setProfile(null); setTeams([]) }}
           onLogout={logout}
+        />
+      ) : activeTeam ? (
+        <TeamView
+          team={activeTeam}
+          currentUserId={user.id}
+          onBack={() => setActiveTeam(null)}
+          onTeamUpdated={(updated) => {
+            setTeams(prev => prev.map(t => t.id === updated.id ? updated : t))
+            setActiveTeam(updated)
+          }}
+        />
+      ) : (
+        <TeamHome
+          teams={teams.map(t => ({ ...t, _userId: user.id }))}
+          onSelectTeam={(team) => { setActiveTeam(team); setShowAccount(false) }}
+          onTeamCreated={(team) => setTeams(prev => [...prev, team])}
+          onTeamDeleted={(id) => setTeams(prev => prev.filter(t => t.id !== id))}
         />
       )}
     </div>
