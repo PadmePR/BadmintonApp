@@ -322,8 +322,8 @@ export default function TeamPlayersTab({ team, members, setMembers, isAdmin, cur
         </div>
       )}
 
-      {/* Absent — admin only */}
-      {isAdmin && absent.length > 0 && (
+      {/* Absent — visible to everyone, editable only by admins */}
+      {absent.length > 0 && (
         <div>
           <div className="section-divider" />
           <div className="section-header">
@@ -331,10 +331,26 @@ export default function TeamPlayersTab({ team, members, setMembers, isAdmin, cur
             <span className="section-count">{absent.length}</span>
           </div>
           {absent.map((m, i) => (
-            <MemberRow key={m.id} member={m} index={playing.length + i}
-              isAdmin={isAdmin} isCreator={isCreator}
-              currentUserId={currentUserId}
-              onUpdate={updateMember} onRemove={removeMember} onToggleAdmin={toggleAdmin} />
+            isAdmin ? (
+              <MemberRow key={m.id} member={m} index={playing.length + i}
+                isAdmin={isAdmin} isCreator={isCreator}
+                currentUserId={currentUserId}
+                onUpdate={updateMember} onRemove={removeMember} onToggleAdmin={toggleAdmin} />
+            ) : (
+              // Read-only absent row for members
+              <div key={m.id} className="player-row absent">
+                <div className="avatar" style={{ background: '#eeede9', color: '#999993' }}>
+                  {m.name ? m.name.slice(0,2).toUpperCase() : '??'}
+                </div>
+                <span className="player-name">{m.name}</span>
+                {m.user_id === currentUserId && (
+                  <span style={{
+                    fontSize: 11, color: 'var(--text-tertiary)',
+                    background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 8,
+                  }}>You</span>
+                )}
+              </div>
+            )
           ))}
         </div>
       )}

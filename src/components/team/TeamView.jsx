@@ -207,6 +207,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
           team={team}
           members={members}
           isAdmin={isAdmin}
+          currentUserId={currentUserId}
           result={matchResult}
           setResult={setMatchResult}
           savedMeta={savedMeta}

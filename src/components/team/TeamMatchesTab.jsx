@@ -117,7 +117,7 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
 }
 
 export default function TeamMatchesTab({
-  team, members, isAdmin,
+  team, members, isAdmin, currentUserId,
   result, setResult, savedMeta, setSavedMeta,
 }) {
   const [roundsInput, setRoundsInput] = useState(
@@ -128,6 +128,10 @@ export default function TeamMatchesTab({
 
   // Only non-absent members play
   const playing = members.filter(m => !m.absent)
+
+  // Check if the current user is marked absent in this team
+  const currentMember = members.find(m => m.user_id === currentUserId)
+  const isCurrentUserAbsent = currentMember ? currentMember.absent : false
 
   function getParsedRounds() {
     const n = parseInt(roundsInput, 10)
@@ -202,13 +206,32 @@ export default function TeamMatchesTab({
 
   return (
     <div>
-      {/* Member-only notice */}
-      {!isAdmin && !result && (
+      {/* Absent user message — shown instead of matches */}
+      {!isAdmin && isCurrentUserAbsent && (
+        <div style={{
+          textAlign: 'center', padding: '40px 20px',
+          color: 'var(--text-secondary)',
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏸</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+            You are not playing today
+          </div>
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+            Match results are only visible to players in today's session.
+          </div>
+        </div>
+      )}
+
+      {/* Member-only notice when no matches yet */}
+      {!isAdmin && !isCurrentUserAbsent && !result && (
         <div className="notice" style={{ display: 'block' }}>
           Waiting for an admin to generate matches.
         </div>
       )}
 
+      {/* Admin controls + match content — hidden from absent non-admin users */}
+      {(isAdmin || !isCurrentUserAbsent) && (
+      <div>
       {/* Admin controls */}
       {isAdmin && (
         <div className="gen-controls">
@@ -292,6 +315,8 @@ export default function TeamMatchesTab({
             </div>
           )
       }
+      </div>
+      )}
     </div>
   )
 }
