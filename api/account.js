@@ -12,11 +12,13 @@ export default async function handler(req, res) {
 
   // GET /api/account
   if (req.method === 'GET') {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileErr } = await supabaseAdmin
       .from('user_profiles')
       .select('username, skill_level, user_tag, created_at')
       .eq('id', user.id)
       .maybeSingle()
+
+    if (profileErr) console.error('GET profile error:', profileErr)
 
     return res.status(200).json({
       id: user.id,
@@ -32,6 +34,7 @@ export default async function handler(req, res) {
   if (req.method === 'PUT') {
     const { username, skill_level, password, user_tag } = req.body
 
+    // Validate
     if (username !== undefined) {
       if (typeof username !== 'string' || username.trim().length === 0)
         return res.status(400).json({ error: 'Username cannot be empty' })
@@ -48,7 +51,6 @@ export default async function handler(req, res) {
     if (user_tag !== undefined && user_tag !== null && user_tag !== '') {
       if (typeof user_tag !== 'string' || !/^[a-z0-9_]{3,20}$/.test(user_tag))
         return res.status(400).json({ error: 'User tag must be 3–20 characters: lowercase letters, numbers, underscores only' })
-      // Check uniqueness
       const { data: existing } = await supabaseAdmin
         .from('user_profiles')
         .select('id')
@@ -58,17 +60,42 @@ export default async function handler(req, res) {
         return res.status(409).json({ error: 'That user tag is already taken' })
     }
 
+    // Update profile fields
     if (username !== undefined || skill_level !== undefined || user_tag !== undefined) {
-      const profileUpdates = { id: user.id }
-      if (username !== undefined) profileUpdates.username = username.trim()
-      if (skill_level !== undefined) profileUpdates.skill_level = skill_level === null ? null : Number(skill_level)
-      if (user_tag !== undefined) profileUpdates.user_tag = user_tag === '' ? null : user_tag
+      const updates = {}
+      if (username !== undefined)    updates.username    = username.trim()
+      if (skill_level !== undefined) updates.skill_level = skill_level === null ? null : Number(skill_level)
+      if (user_tag !== undefined)    updates.user_tag    = user_tag === '' ? null : user_tag
 
-      const { error: profileError } = await supabaseAdmin
+      // Check if row exists
+      const { data: existingProfile } = await supabaseAdmin
         .from('user_profiles')
-        .upsert(profileUpdates, { onConflict: 'id' })
-      if (profileError) return res.status(500).json({ error: profileError.message })
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle()
 
+      let profileError
+      if (existingProfile) {
+        // Row exists — UPDATE
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .update(updates)
+          .eq('id', user.id)
+        profileError = error
+      } else {
+        // No row yet — INSERT
+        const { error } = await supabaseAdmin
+          .from('user_profiles')
+          .insert({ id: user.id, ...updates })
+        profileError = error
+      }
+
+      if (profileError) {
+        console.error('Profile save error:', profileError)
+        return res.status(500).json({ error: profileError.message })
+      }
+
+      // Keep auth metadata in sync
       if (username !== undefined) {
         await supabaseAdmin.auth.admin.updateUserById(user.id, {
           data: { username: username.trim() }
@@ -76,11 +103,16 @@ export default async function handler(req, res) {
       }
     }
 
+    // Update password
     if (password !== undefined) {
       const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(user.id, { password })
-      if (pwError) return res.status(500).json({ error: pwError.message })
+      if (pwError) {
+        console.error('Password update error:', pwError)
+        return res.status(500).json({ error: pwError.message })
+      }
     }
 
+    // Return fresh profile
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('username, skill_level, user_tag, created_at')
@@ -99,8 +131,8 @@ export default async function handler(req, res) {
 
   // DELETE /api/account
   if (req.method === 'DELETE') {
-    await supabaseAdmin.from('players').delete().eq('user_id', user.id)
-    await supabaseAdmin.from('matches').delete().eq('user_id', user.id)
+    await supabaseAdmin.from('team_members').delete().eq('user_id', user.id)
+    await supabaseAdmin.from('teams').delete().eq('created_by', user.id)
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ success: true })
