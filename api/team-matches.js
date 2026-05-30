@@ -47,13 +47,15 @@ export default async function handler(req, res) {
     return res.status(200).json(data || null)
   }
 
-  // POST /api/team-matches — save/upsert (admin only)
+  // POST /api/team-matches — save full rounds data + meta (admin only)
   if (req.method === 'POST') {
-    const { team_id, meta } = req.body
+    const { team_id, rounds, meta } = req.body
     if (!team_id) return res.status(400).json({ error: 'team_id required' })
 
     const isAdmin = await checkAdmin(team_id, user.id)
     if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+
+    const payload = { meta, rounds: rounds || null, created_by: user.id }
 
     const { data: existing } = await supabaseAdmin
       .from('team_matches').select('id').eq('team_id', team_id).maybeSingle()
@@ -61,13 +63,13 @@ export default async function handler(req, res) {
     let result
     if (existing) {
       const { data, error } = await supabaseAdmin
-        .from('team_matches').update({ meta, created_by: user.id })
+        .from('team_matches').update(payload)
         .eq('id', existing.id).select().single()
       if (error) return res.status(500).json({ error: error.message })
       result = data
     } else {
       const { data, error } = await supabaseAdmin
-        .from('team_matches').insert({ team_id, meta, created_by: user.id })
+        .from('team_matches').insert({ team_id, ...payload })
         .select().single()
       if (error) return res.status(500).json({ error: error.message })
       result = data
