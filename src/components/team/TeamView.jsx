@@ -4,6 +4,7 @@ import { api } from '../../lib/api.js'
 import TeamPlayersTab from './TeamPlayersTab.jsx'
 import TeamMatchesTab from './TeamMatchesTab.jsx'
 import PlaySessionPage from '../../features/matchPlay/PlaySessionPage.jsx'
+import PlayHistory from '../../features/matchPlay/PlayHistory.jsx'
 
 export default function TeamView({ team, currentUserId, onBack, onTeamUpdated }) {
   const [tab, setTab]               = useState('players')
@@ -16,6 +17,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
   const [newName, setNewName]       = useState(team.name)
   const [syncBadge, setSyncBadge]   = useState(null) // 'players' | 'matches' | null
   const [playSession, setPlaySession] = useState(null) // active play session
+  const [showHistory, setShowHistory] = useState(false)
   const channelRef = useRef(null)
 
   useEffect(() => {
@@ -124,6 +126,15 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
     />
   )
 
+  if (showHistory) return (
+    <PlayHistory
+      teamId={team.id}
+      isAdmin={isAdmin}
+      members={members}
+      onBack={() => setShowHistory(false)}
+    />
+  )
+
   if (loading) return (
     <div style={{ padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>
       Loading team…
@@ -186,11 +197,11 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
 
       {/* Tab bar with sync indicator */}
       <div className="tab-bar">
-        {['players', 'matches'].map(t => (
+        {['players', 'matches', 'history'].map(t => (
           <button key={t} className={`tab-btn${tab === t ? ' active' : ''}`}
             onClick={() => setTab(t)}
             style={{ position: 'relative' }}>
-            {t === 'players' ? 'Players' : 'Matches'}
+            {t === 'players' ? 'Players' : t === 'matches' ? 'Matches' : 'History'}
             {syncBadge === t && tab !== t && (
               <span style={{
                 position: 'absolute', top: 4, right: 4,
@@ -223,6 +234,14 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
           savedMeta={savedMeta}
           setSavedMeta={setSavedMeta}
           onStartPlaying={(session) => setPlaySession(session)}
+        />
+      )}
+      {tab === 'history' && (
+        <PlayHistory
+          teamId={team.id}
+          isAdmin={isAdmin}
+          members={members}
+          onBack={() => setTab('matches')}
         />
       )}
     </div>
