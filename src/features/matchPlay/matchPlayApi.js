@@ -134,3 +134,13 @@ export async function fetchTeamMembers(teamId) {
   if (error) throw error;
   return data;
 }
+
+export async function deleteSession(sessionId) {
+  // match_play_matches rows cascade-delete via FK
+  const { error } = await supabase
+    .from('match_play_sessions')
+    .delete()
+    .eq('id', sessionId);
+  if (error) throw error;
+  return true;
+}
