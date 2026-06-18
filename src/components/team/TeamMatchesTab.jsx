@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../../lib/api.js'
 import { generateRounds } from '../../lib/matchEngine.js'
 import { col, ini, sl } from '../../lib/utils.js'
+import { startPlaying } from '../../features/matchPlay/matchPlayApi.js'
 
 function TeamCol({ team, allMembers }) {
   return (
@@ -119,11 +120,13 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
 export default function TeamMatchesTab({
   team, members, isAdmin, currentUserId,
   result, setResult, savedMeta, setSavedMeta,
+  onStartPlaying,
 }) {
   const [roundsInput, setRoundsInput] = useState(
     savedMeta?.rounds ? String(savedMeta.rounds) : '4'
   )
-  const [saving, setSaving]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [starting, setStarting] = useState(false)
   const [genError, setGenError] = useState('')
 
   // Only non-absent members play
@@ -193,6 +196,21 @@ export default function TeamMatchesTab({
     } catch (e) { alert(e.message) }
   }
 
+  async function handleStartPlaying() {
+    try {
+      setStarting(true)
+      // Fetch the team_matches row id so startPlaying can load the plan
+      const matchData = await api.getTeamMatches(team.id)
+      if (!matchData?.id) throw new Error('No saved match plan found.')
+      const session = await startPlaying(matchData.id)
+      if (onStartPlaying) onStartPlaying(session)
+    } catch (e) {
+      alert('Failed to start session: ' + e.message)
+    } finally {
+      setStarting(false)
+    }
+  }
+
   // Global match numbering across all rounds
   let matchCounter = 1
   const safeRounds = Array.isArray(result?.rounds) ? result.rounds : []
@@ -257,6 +275,14 @@ export default function TeamMatchesTab({
                   Save as PDF
                 </button>
                 <button className="btn-danger" onClick={clearMatches}>Delete list</button>
+                <button
+                  className="btn-primary"
+                  onClick={handleStartPlaying}
+                  disabled={starting}
+                  style={{ background: '#1D9E75' }}
+                >
+                  {starting ? 'Starting…' : '▶ Start Playing'}
+                </button>
               </>
             )}
           </div>

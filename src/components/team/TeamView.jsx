@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js'
 import { api } from '../../lib/api.js'
 import TeamPlayersTab from './TeamPlayersTab.jsx'
 import TeamMatchesTab from './TeamMatchesTab.jsx'
+import PlaySessionPage from '../../features/matchPlay/PlaySessionPage.jsx'
 
 export default function TeamView({ team, currentUserId, onBack, onTeamUpdated }) {
   const [tab, setTab]               = useState('players')
@@ -14,6 +15,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
   const [editing, setEditing]       = useState(false)
   const [newName, setNewName]       = useState(team.name)
   const [syncBadge, setSyncBadge]   = useState(null) // 'players' | 'matches' | null
+  const [playSession, setPlaySession] = useState(null) // active play session
   const channelRef = useRef(null)
 
   useEffect(() => {
@@ -114,6 +116,13 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
     } catch (e) { alert(e.message) }
   }
 
+  if (playSession) return (
+    <PlaySessionPage
+      sessionId={playSession.id}
+      onClose={() => setPlaySession(null)}
+    />
+  )
+
   if (loading) return (
     <div style={{ padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>
       Loading team…
@@ -212,6 +221,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
           setResult={setMatchResult}
           savedMeta={savedMeta}
           setSavedMeta={setSavedMeta}
+          onStartPlaying={(session) => setPlaySession(session)}
         />
       )}
     </div>
