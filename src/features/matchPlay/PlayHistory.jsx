@@ -158,8 +158,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
 
                         {/* Team A */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                            {winA && <span style={{ fontSize: 12 }}>🏆</span>}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                             {teamA.map((id, i) => {
                               const member = membersById[id];
                               const c = col(i);
@@ -170,6 +169,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                                     background: c.bg, color: c.fg,
                                     fontSize: 8, fontWeight: 700,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0,
                                   }}>
                                     {ini(member?.name || '?')}
                                   </div>
@@ -183,6 +183,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                                 </div>
                               );
                             })}
+                            {winA && <span style={{ fontSize: 13, paddingLeft: 2 }}>🏆</span>}
                           </div>
                         </div>
 
@@ -191,8 +192,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
 
                         {/* Team B */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                            {winB && <span style={{ fontSize: 12 }}>🏆</span>}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
                             {teamB.map((id, i) => {
                               const member = membersById[id];
                               const c = col(i + 2);
@@ -203,6 +203,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                                     background: c.bg, color: c.fg,
                                     fontSize: 8, fontWeight: 700,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0,
                                   }}>
                                     {ini(member?.name || '?')}
                                   </div>
@@ -216,18 +217,8 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                                 </div>
                               );
                             })}
+                            {winB && <span style={{ fontSize: 13, paddingRight: 2 }}>🏆</span>}
                           </div>
-                        </div>
-
-                        {/* Result badge */}
-                        <div style={{ flexShrink: 0, width: 48, textAlign: 'right' }}>
-                          {m.winner_team ? (
-                            <span className="tag tag-perfect">
-                              {m.winner_team === 'A' ? 'A won' : 'B won'}
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>
-                          )}
                         </div>
                       </div>
                     );
