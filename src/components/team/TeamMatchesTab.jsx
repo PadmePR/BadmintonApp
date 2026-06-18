@@ -196,7 +196,10 @@ export default function TeamMatchesTab({
   }
 
   async function handleStartPlaying() {
-    if (!teamMatchesId) return alert('No generated match plan found.')
+    if (!teamMatchesId) {
+      console.error('teamMatchesId is missing:', teamMatchesId)
+      return alert('No generated match plan found. Please generate matches first.')
+    }
     try {
       // startPlaying will create a session and return it
       const session = await startPlaying(teamMatchesId)
