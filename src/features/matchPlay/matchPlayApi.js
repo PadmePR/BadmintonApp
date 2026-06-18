@@ -1,7 +1,4 @@
-// src/features/matchPlay/matchPlayApi.js
-
-// NOTE: adjust the import path for your project's supabase client if needed
-import supabase from '../../supabaseClient';
+import { supabase } from '../../lib/supabase.js'
 
 export async function startPlaying(teamMatchesId) {
   // 1) fetch plan and derive team_id
@@ -14,8 +11,8 @@ export async function startPlaying(teamMatchesId) {
   if (!plan || !plan.rounds) throw new Error('No generated match plan found.');
 
   // 2) create session row
-  const user = (await supabase.auth.getUser()).data?.user;
-  const adminId = user?.id ?? null;
+  const { data: userData } = await supabase.auth.getUser();
+  const adminId = userData?.user?.id ?? null;
   const { data: session, error: sessErr } = await supabase
     .from('match_play_sessions')
     .insert([{

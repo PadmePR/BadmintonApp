@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import './play.css';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchSessionMatches, fetchTeamMembers, closeSession as apiCloseSession, fetchSession } from './matchPlayApi';
 import MatchCard from './MatchCard';
