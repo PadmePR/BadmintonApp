@@ -120,7 +120,7 @@ function RoundBlock({ round, roundNum, matchNumStart, allMembers }) {
 export default function TeamMatchesTab({
   team, members, isAdmin, currentUserId,
   result, setResult, savedMeta, setSavedMeta,
-  teamMatchesId, onStartPlay,
+  teamMatchesId, setTeamMatchesId, onStartPlay,
 }) {
   const [roundsInput, setRoundsInput] = useState(
     savedMeta?.rounds ? String(savedMeta.rounds) : '4'
@@ -171,7 +171,7 @@ export default function TeamMatchesTab({
         ]),
       }))
 
-      await api.saveTeamMatches(team.id, serialisedRounds, meta)
+      const savedData = await api.saveTeamMatches(team.id, serialisedRounds, meta)
 
       setResult({
         rounds: serialisedRounds,
@@ -180,6 +180,10 @@ export default function TeamMatchesTab({
         totalPlayers: res.totalPlayers,
       })
       setSavedMeta(meta)
+      // Update teamMatchesId from the saved data
+      if (savedData?.id) {
+        setTeamMatchesId(savedData.id)
+      }
     } catch (e) {
       setGenError('Failed to save: ' + e.message)
     }
@@ -192,6 +196,7 @@ export default function TeamMatchesTab({
       await api.deleteTeamMatches(team.id)
       setResult(null)
       setSavedMeta(null)
+      setTeamMatchesId(null)
     } catch (e) { alert(e.message) }
   }
 
