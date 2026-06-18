@@ -1,51 +1,98 @@
 // src/features/matchPlay/MatchCard.jsx
 import React, { useState } from 'react';
-import { setWinner } from './matchPlayApi';
+import { setWinner } from './matchPlayApi.js';
+import { col, ini } from '../../lib/utils.js';
 
-export default function MatchCard({ match, membersById, onWinnerSet }) {
-  const [isSaving, setIsSaving] = useState(false);
+function PlayerChip({ player, index }) {
+  const c = col(index);
+  return (
+    <div className="team-player">
+      <div className="tp-avatar" style={{ background: c.bg, color: c.fg }}>
+        {ini(player.name || '?')}
+      </div>
+      <div className="tp-name">{player.name || player.id}</div>
+    </div>
+  );
+}
 
-  const teamAPlayers = (match.team_a?.players ?? []).map(id => membersById[id] || { id, name: id });
-  const teamBPlayers = (match.team_b?.players ?? []).map(id => membersById[id] || { id, name: id });
+export default function MatchCard({ match, courtNumber, membersById, onWinnerSet }) {
+  const [saving, setSaving] = useState(false);
+
+  const teamAPlayers = (match.team_a?.players ?? []).map(id => membersById[id] || { id, name: String(id) });
+  const teamBPlayers = (match.team_b?.players ?? []).map(id => membersById[id] || { id, name: String(id) });
+
+  const isFinished = !!match.winner_team;
 
   async function pickWinner(team) {
-    setIsSaving(true);
-    const winnerPlayers = team === 'A' ? (match.team_a.players ?? []) : (match.team_b.players ?? []);
-
+    if (isFinished || saving) return;
+    setSaving(true);
+    const winnerPlayers = team === 'A' ? (match.team_a?.players ?? []) : (match.team_b?.players ?? []);
     try {
-      await setWinner(match.id, team, winnerPlayers, match.score ?? null);
+      await setWinner(match.id, team, winnerPlayers, null);
       onWinnerSet?.();
     } catch (err) {
       console.error('Failed to set winner', err);
       alert('Failed to save winner: ' + err.message);
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   }
 
   return (
-    <div className={`match-card ${match.winner_team ? 'finished' : ''}`} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 12, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>Match {match.match_index}</div>
-        <div style={{ fontSize: 12, color: '#666' }}>{match.started_at ? new Date(match.started_at).toLocaleTimeString() : ''}</div>
+    <div className="match-card" style={isFinished ? { opacity: 0.75 } : {}}>
+      {/* Header */}
+      <div className="match-header">
+        <span className="match-num">Court {courtNumber}</span>
+        {isFinished ? (
+          <span className="tag tag-perfect">✓ Done</span>
+        ) : saving ? (
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Saving…</span>
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Tap winner</span>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}>
-        <div onClick={() => pickWinner('A')} style={{ flex: 1, padding: 12, borderRadius: 10, background: match.winner_team === 'A' ? '#dff0d8' : '#f5f5f5', cursor: 'pointer' }}>
-          <div style={{ fontWeight: 'bold' }}>Team A</div>
-          <div style={{ marginTop: 6 }}>{teamAPlayers.map(p => p.name).join(', ')}</div>
-        </div>
+      {/* Teams */}
+      <div className="vs-row">
+        {/* Team A */}
+        <button
+          onClick={() => pickWinner('A')}
+          disabled={isFinished || saving}
+          style={{
+            all: 'unset', display: 'flex', flexDirection: 'column', gap: 7,
+            padding: '10px 10px', borderRadius: 'var(--radius)',
+            cursor: isFinished ? 'default' : 'pointer',
+            background: match.winner_team === 'A' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+            border: match.winner_team === 'A' ? '1.5px solid var(--accent)' : '1.5px solid transparent',
+            width: '100%', transition: 'background 0.15s, border-color 0.15s',
+          }}
+        >
+          {teamAPlayers.map((p, i) => <PlayerChip key={p.id} player={p} index={i} />)}
+          {match.winner_team === 'A' && (
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginTop: 4 }}>Winner 🏆</div>
+          )}
+        </button>
 
-        <div style={{ width: 48, textAlign: 'center' }}>VS</div>
+        <div className="vs-divider">vs</div>
 
-        <div onClick={() => pickWinner('B')} style={{ flex: 1, padding: 12, borderRadius: 10, background: match.winner_team === 'B' ? '#dff0d8' : '#f5f5f5', cursor: 'pointer' }}>
-          <div style={{ fontWeight: 'bold' }}>Team B</div>
-          <div style={{ marginTop: 6 }}>{teamBPlayers.map(p => p.name).join(', ')}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12, fontSize: 13 }}>
-        {isSaving ? 'Saving...' : match.winner_team ? `Winner: Team ${match.winner_team}` : 'Tap a team to mark winner'}
+        {/* Team B */}
+        <button
+          onClick={() => pickWinner('B')}
+          disabled={isFinished || saving}
+          style={{
+            all: 'unset', display: 'flex', flexDirection: 'column', gap: 7,
+            padding: '10px 10px', borderRadius: 'var(--radius)',
+            cursor: isFinished ? 'default' : 'pointer',
+            background: match.winner_team === 'B' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+            border: match.winner_team === 'B' ? '1.5px solid var(--accent)' : '1.5px solid transparent',
+            width: '100%', transition: 'background 0.15s, border-color 0.15s',
+          }}
+        >
+          {teamBPlayers.map((p, i) => <PlayerChip key={p.id} player={p} index={i + 2} />)}
+          {match.winner_team === 'B' && (
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginTop: 4 }}>Winner 🏆</div>
+          )}
+        </button>
       </div>
     </div>
   );
