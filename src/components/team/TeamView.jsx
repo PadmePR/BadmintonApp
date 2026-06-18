@@ -217,6 +217,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
           savedMeta={savedMeta}
           setSavedMeta={setSavedMeta}
           teamMatchesId={teamMatchesId}
+          setTeamMatchesId={setTeamMatchesId}
           onStartPlay={(sessionId) => setActivePlaySessionId(sessionId)}
         />
       )}
