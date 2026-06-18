@@ -119,6 +119,7 @@ export default function TeamView({ team, currentUserId, onBack, onTeamUpdated })
   if (playSession) return (
     <PlaySessionPage
       sessionId={playSession.id}
+      teamId={team.id}
       onClose={() => setPlaySession(null)}
     />
   )
