@@ -81,21 +81,6 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
     <div>
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button
-          onClick={handleClose}
-          disabled={closing}
-          style={{
-            width: 36, height: 36, borderRadius: '50%',
-            border: '1px solid var(--border-medium)', background: 'none',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, color: 'var(--text)',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-        </button>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>🏸 Play Mode</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
