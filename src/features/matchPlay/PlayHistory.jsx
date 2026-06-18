@@ -192,6 +192,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                         {/* Team B */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {winB && <span style={{ fontSize: 12 }}>🏆</span>}
                             {teamB.map((id, i) => {
                               const member = membersById[id];
                               const c = col(i + 2);
@@ -215,7 +216,6 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                                 </div>
                               );
                             })}
-                            {winB && <span style={{ fontSize: 12 }}>🏆</span>}
                           </div>
                         </div>
 
@@ -272,25 +272,10 @@ export default function PlayHistory({ teamId, isAdmin, members, onBack }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button
-          onClick={onBack}
-          style={{
-            width: 36, height: 36, borderRadius: '50%',
-            border: '1px solid var(--border-medium)', background: 'none',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
-        </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Match History</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {sessions.length} session{sessions.length !== 1 ? 's' : ''}
-          </div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Match History</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+          {sessions.length} session{sessions.length !== 1 ? 's' : ''}
         </div>
       </div>
 
