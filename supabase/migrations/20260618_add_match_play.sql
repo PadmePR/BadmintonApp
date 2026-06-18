@@ -38,8 +38,10 @@ alter table public.match_play_sessions enable row level security;
 alter table public.match_play_matches enable row level security;
 
 -- Read policies: allow team members to SELECT sessions and match rows for their team
-create policy if not exists "match_play_sessions_select_for_team_members" on public.match_play_sessions
-  for SELECT using (
+-- Drop existing policies if present (helpful when re-running migration)
+DROP POLICY IF EXISTS "match_play_sessions_select_for_team_members" ON public.match_play_sessions;
+CREATE POLICY "match_play_sessions_select_for_team_members" ON public.match_play_sessions
+  FOR SELECT USING (
     exists (
       select 1 from public.team_members tm
       where tm.team_id = public.match_play_sessions.team_id
@@ -47,8 +49,9 @@ create policy if not exists "match_play_sessions_select_for_team_members" on pub
     )
   );
 
-create policy if not exists "match_play_matches_select_for_team_members" on public.match_play_matches
-  for SELECT using (
+DROP POLICY IF EXISTS "match_play_matches_select_for_team_members" ON public.match_play_matches;
+CREATE POLICY "match_play_matches_select_for_team_members" ON public.match_play_matches
+  FOR SELECT USING (
     exists (
       select 1 from public.match_play_sessions s
       join public.team_members tm on tm.team_id = s.team_id
@@ -58,15 +61,16 @@ create policy if not exists "match_play_matches_select_for_team_members" on publ
   );
 
 -- Admin policies: only team admins (team_members.is_admin = true) can INSERT/UPDATE/DELETE sessions and match rows
-create policy if not exists "admins_manage_sessions" on public.match_play_sessions
-  for all using (
+DROP POLICY IF EXISTS "admins_manage_sessions" ON public.match_play_sessions;
+CREATE POLICY "admins_manage_sessions" ON public.match_play_sessions
+  FOR ALL USING (
     exists (
       select 1 from public.team_members tm
       where tm.team_id = public.match_play_sessions.team_id
         and tm.user_id = auth.uid()
         and tm.is_admin = true
     )
-  ) with check (
+  ) WITH CHECK (
     exists (
       select 1 from public.team_members tm
       where tm.team_id = public.match_play_sessions.team_id
@@ -75,8 +79,9 @@ create policy if not exists "admins_manage_sessions" on public.match_play_sessio
     )
   );
 
-create policy if not exists "admins_manage_match_rows" on public.match_play_matches
-  for all using (
+DROP POLICY IF EXISTS "admins_manage_match_rows" ON public.match_play_matches;
+CREATE POLICY "admins_manage_match_rows" ON public.match_play_matches
+  FOR ALL USING (
     exists (
       select 1 from public.match_play_sessions s
       join public.team_members tm on tm.team_id = s.team_id
@@ -84,7 +89,7 @@ create policy if not exists "admins_manage_match_rows" on public.match_play_matc
         and tm.user_id = auth.uid()
         and tm.is_admin = true
     )
-  ) with check (
+  ) WITH CHECK (
     exists (
       select 1 from public.match_play_sessions s
       join public.team_members tm on tm.team_id = s.team_id
@@ -95,4 +100,4 @@ create policy if not exists "admins_manage_match_rows" on public.match_play_matc
   );
 
 -- Notes:
--- winner_players will store team_members.id (recommended, because the app supports players without user accounts).
+-- winner_players will store team_members.id (recommended, because the app supports players without linked auth accounts).
