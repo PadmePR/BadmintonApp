@@ -1,12 +1,12 @@
-// src/features/matchPlay/PlaySessionPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchSessionMatches, fetchSessionsForTeam, fetchTeamMembers, closeSession as apiCloseSession } from './matchPlayApi';
+import { fetchSessionMatches, fetchTeamMembers, closeSession as apiCloseSession, fetchSession } from './matchPlayApi';
 import MatchCard from './MatchCard';
 
-export default function PlaySessionPage() {
-  const { sessionId } = useParams();
-  const navigate = useNavigate();
+export default function PlaySessionPage({ sessionId: propSessionId, onClose }) {
+  const params = useParams?.() ?? {};
+  const navigate = (useNavigate ? useNavigate() : () => {});
+  const sessionId = propSessionId ?? params.sessionId;
   const [session, setSession] = useState(null);
   const [matches, setMatches] = useState([]);
   const [currentRound, setCurrentRound] = useState(null);
@@ -21,21 +21,15 @@ export default function PlaySessionPage() {
   useEffect(() => {
     async function load() {
       try {
-        // load matches for session
+        const s = await fetchSession(sessionId);
+        setSession(s);
+
         const ms = await fetchSessionMatches(sessionId);
         setMatches(ms || []);
         if (ms && ms.length) setCurrentRound(ms[0].round);
 
-        // load session row to get team_id
-        const { data: sessions } = await fetchSessionsForTeam(null).catch(() => ({ data: [] }));
-        // We can't call fetchSessionsForTeam without teamId easily here; instead try to extract team_id from matches if present
-        // If sessions API isn't available, the session row will be accessible inside the matches (not guaranteed). We'll try to fetch team members using the first match's team_a.team_id or team_b.team_id
-
-        let teamId = null;
-        if (ms && ms.length) {
-          teamId = ms[0].team_a?.team_id || ms[0].team_b?.team_id || null;
-        }
-        if (typeof teamId === 'string' && teamId) {
+        const teamId = s?.team_id ?? null;
+        if (teamId) {
           const mems = await fetchTeamMembers(teamId);
           setMembers(mems || []);
         }
@@ -44,7 +38,7 @@ export default function PlaySessionPage() {
         alert('Failed to load play session: ' + err.message);
       }
     }
-    load();
+    if (sessionId) load();
   }, [sessionId]);
 
   const rounds = useMemo(() => Array.from(new Set(matches.map(m => m.round))).sort((a,b)=>a-b), [matches]);
@@ -68,7 +62,11 @@ export default function PlaySessionPage() {
   async function handleClose() {
     try {
       await apiCloseSession(sessionId);
-      navigate('/matches');
+      if (onClose) {
+        onClose();
+      } else if (navigate) {
+        navigate('/');
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to close session: ' + err.message);

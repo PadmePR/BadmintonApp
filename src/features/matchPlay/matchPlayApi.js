@@ -62,8 +62,8 @@ export async function startPlaying(teamMatchesId) {
 
 export async function setWinner(matchId, winnerTeam, winnerPlayers = [], score = null) {
   const payload = {
-    winner_team: winnerTeam,
-    winner_players: winnerPlayers, // store team_members.id (can be null for userless players if you included team_member ids)
+    winner_team: winnerTeam, // 'A' or 'B'
+    winner_players: winnerPlayers, // e.g. ['uuid1','uuid2'] (team_members.id)
     score,
     finished_at: new Date().toISOString()
   };
@@ -114,6 +114,16 @@ export async function fetchTeamMembers(teamId) {
     .select('id, user_id, name, absent, is_admin')
     .eq('team_id', teamId)
     .eq('absent', false);
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchSession(sessionId) {
+  const { data, error } = await supabase
+    .from('match_play_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .single();
   if (error) throw error;
   return data;
 }
