@@ -1,7 +1,6 @@
 // src/features/matchPlay/matchPlayApi.js
 
-// NOTE: adjust the import path for your project's supabase client if needed
-import supabase from '../../supabaseClient';
+import { supabase } from '../../lib/supabase.js';
 
 export async function startPlaying(teamMatchesId) {
   // 1) fetch plan and derive team_id
@@ -29,22 +28,40 @@ export async function startPlaying(teamMatchesId) {
   if (sessErr) throw sessErr;
 
   // 3) map rounds -> match_play_matches
+  // The match engine serialises rounds as:
+  //   { courts, sitting: [...], matches: [[t1_players, t2_players], ...] }
+  // where each match is a 2-element array of player-object arrays.
   const matchesToInsert = [];
-  for (const roundObj of plan.rounds) {
-    const roundNumber = roundObj.round ?? roundObj.round_number ?? null;
+  for (let roundIndex = 0; roundIndex < plan.rounds.length; roundIndex++) {
+    const roundObj = plan.rounds[roundIndex];
+    const roundNumber = roundIndex + 1; // 1-based round number
     const matchesArr = roundObj.matches ?? [];
-    for (const m of matchesArr) {
-      const match_index = m.match_index ?? m.index ?? 0;
-      const team_a = m.team_a ?? m.a ?? { team_id: m.team_a_id ?? null, players: m.team_a_player_ids ?? [] };
-      const team_b = m.team_b ?? m.b ?? { team_id: m.team_b_id ?? null, players: m.team_b_player_ids ?? [] };
+    for (let mi = 0; mi < matchesArr.length; mi++) {
+      const m = matchesArr[mi];
+      // Each match is either a [t1, t2] array pair (from the match engine)
+      // or an object with team_a / team_b keys.
+      let t1, t2;
+      if (Array.isArray(m)) {
+        t1 = m[0] ?? [];
+        t2 = m[1] ?? [];
+      } else {
+        t1 = m.team_a ?? m.a ?? [];
+        t2 = m.team_b ?? m.b ?? [];
+      }
+      const team_a = {
+        players: (Array.isArray(t1) ? t1 : []).map(p => p.id ?? p),
+      };
+      const team_b = {
+        players: (Array.isArray(t2) ? t2 : []).map(p => p.id ?? p),
+      };
 
       matchesToInsert.push({
         session_id: session.id,
-        round: roundNumber ?? 0,
-        match_index,
+        round: roundNumber,
+        match_index: mi,
         team_a,
         team_b,
-        sitting_out: !!m.sitting_out
+        sitting_out: false,
       });
     }
   }
@@ -63,7 +80,7 @@ export async function startPlaying(teamMatchesId) {
 export async function setWinner(matchId, winnerTeam, winnerPlayers = [], score = null) {
   const payload = {
     winner_team: winnerTeam,
-    winner_players: winnerPlayers, // store team_members.id (can be null for userless players if you included team_member ids)
+    winner_players: winnerPlayers,
     score,
     finished_at: new Date().toISOString()
   };

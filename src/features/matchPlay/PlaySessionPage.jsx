@@ -1,12 +1,9 @@
 // src/features/matchPlay/PlaySessionPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { fetchSessionMatches, fetchSessionsForTeam, fetchTeamMembers, closeSession as apiCloseSession } from './matchPlayApi';
-import MatchCard from './MatchCard';
+import { fetchSessionMatches, fetchTeamMembers, closeSession as apiCloseSession } from './matchPlayApi.js';
+import MatchCard from './MatchCard.jsx';
 
-export default function PlaySessionPage() {
-  const { sessionId } = useParams();
-  const navigate = useNavigate();
+export default function PlaySessionPage({ sessionId, onClose }) {
   const [session, setSession] = useState(null);
   const [matches, setMatches] = useState([]);
   const [currentRound, setCurrentRound] = useState(null);
@@ -68,7 +65,7 @@ export default function PlaySessionPage() {
   async function handleClose() {
     try {
       await apiCloseSession(sessionId);
-      navigate('/matches');
+      if (onClose) onClose();
     } catch (err) {
       console.error(err);
       alert('Failed to close session: ' + err.message);
