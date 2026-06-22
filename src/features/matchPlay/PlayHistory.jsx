@@ -1,18 +1,40 @@
 // src/features/matchPlay/PlayHistory.jsx
 import React, { useEffect, useState } from 'react';
-import { fetchSessionsForTeam, fetchSessionMatches, deleteSession } from './matchPlayApi.js';
-import { col, ini } from '../../lib/utils.js';
+import {
+  fetchSessionsForTeam,
+  fetchSessionMatches,
+  deleteSession,
+  computeSkillEstimates,
+} from './matchPlayApi.js';
+import { col, ini, sl } from '../../lib/utils.js';
 
-function PlayerName({ id, membersById }) {
-  const m = membersById[id];
-  return <span>{m ? m.name : id}</span>;
+function ScoreBadge({ score, winner, side }) {
+  if (!score || (score.a == null && score.b == null)) return null;
+  const val  = side === 'A' ? score.a : score.b;
+  const isWinner = winner === side;
+  if (val == null) return null;
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '1px 7px',
+      borderRadius: 6,
+      fontSize: 12,
+      fontWeight: 700,
+      background: isWinner ? 'var(--accent-light)' : 'var(--bg-tertiary)',
+      color: isWinner ? 'var(--accent)' : 'var(--text-secondary)',
+      border: `1px solid ${isWinner ? 'var(--accent)' : 'var(--border)'}`,
+      marginLeft: 4,
+    }}>
+      {val}
+    </span>
+  );
 }
 
 function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
-  const [matches, setMatches]     = useState(null); // null = not yet loaded
-  const [loading, setLoading]     = useState(false);
-  const [deleting, setDeleting]   = useState(false);
-  const [expanded, setExpanded]   = useState(false);
+  const [matches, setMatches]   = useState(null);
+  const [loading, setLoading]   = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   async function toggle() {
     if (!expanded && matches === null) {
@@ -48,25 +70,22 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
     ? new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const rounds = matches
-    ? Array.from(new Set(matches.map(m => m.round))).sort((a, b) => a - b)
-    : [];
-
-  const totalMatches  = matches?.length ?? 0;
-  const doneMatches   = matches?.filter(m => m.winner_team).length ?? 0;
+  const rounds       = matches ? Array.from(new Set(matches.map(m => m.round))).sort((a, b) => a - b) : [];
+  const totalMatches = matches?.length ?? 0;
+  const doneMatches  = matches?.filter(m => m.winner_team).length ?? 0;
+  const scoredMatches = matches?.filter(m => m.score && (m.score.a != null || m.score.b != null)).length ?? 0;
 
   return (
     <div style={{
       background: 'var(--bg)', border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)', marginBottom: 10, overflow: 'hidden',
     }}>
-      {/* Session row — always visible */}
+      {/* Session summary row */}
       <div
         onClick={toggle}
         style={{
           display: 'flex', alignItems: 'center', gap: 12,
-          padding: '13px 16px', cursor: 'pointer',
-          userSelect: 'none',
+          padding: '13px 16px', cursor: 'pointer', userSelect: 'none',
         }}
       >
         {/* Date badge */}
@@ -86,16 +105,22 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
             {date} · {time}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            {session.status === 'closed'
-              ? `${doneMatches || '?'} results recorded`
-              : session.status === 'active'
-                ? <span style={{ color: '#1D9E75', fontWeight: 500 }}>● In progress</span>
-                : session.status}
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {session.status === 'closed' ? (
+              <>
+                <span>{doneMatches || '?'} results recorded</span>
+                {scoredMatches > 0 && (
+                  <span style={{ color: '#1D9E75', fontWeight: 500 }}>· {scoredMatches} with scores</span>
+                )}
+              </>
+            ) : session.status === 'active' ? (
+              <span style={{ color: '#1D9E75', fontWeight: 500 }}>● In progress</span>
+            ) : (
+              <span>{session.status}</span>
+            )}
           </div>
         </div>
 
-        {/* Admin delete */}
         {isAdmin && (
           <button
             className="btn-danger"
@@ -107,7 +132,6 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
           </button>
         )}
 
-        {/* Chevron */}
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none"
           stroke="var(--text-tertiary)" strokeWidth="2.5"
@@ -117,7 +141,7 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
         </svg>
       </div>
 
-      {/* Expanded detail */}
+      {/* Expanded match detail */}
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
           {loading ? (
@@ -129,7 +153,6 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
               const roundMatches = matches.filter(m => m.round === r);
               return (
                 <div key={r} style={{ marginBottom: 16 }}>
-                  {/* Round header */}
                   <div className="round-header" style={{ marginBottom: 8 }}>
                     <span className="round-label">Round {r}</span>
                     <span className="round-courts-badge">
@@ -139,85 +162,118 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
                   </div>
 
                   {roundMatches.map((m, ci) => {
-                    const teamA = (m.team_a?.players ?? []);
-                    const teamB = (m.team_b?.players ?? []);
+                    const teamA = m.team_a?.players ?? [];
+                    const teamB = m.team_b?.players ?? [];
                     const winA  = m.winner_team === 'A';
                     const winB  = m.winner_team === 'B';
+                    const hasScore = m.score && (m.score.a != null || m.score.b != null);
 
                     return (
                       <div key={m.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
                         padding: '8px 10px', marginBottom: 6,
                         background: 'var(--bg-secondary)', borderRadius: 'var(--radius)',
                         border: '1px solid var(--border)',
                       }}>
-                        {/* Court label */}
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-tertiary)', flexShrink: 0, width: 44 }}>
-                          Court {ci + 1}
-                        </span>
-
-                        {/* Team A */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {teamA.map((id, i) => {
-                              const member = membersById[id];
-                              const c = col(i);
-                              return (
-                                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <div style={{
-                                    width: 20, height: 20, borderRadius: '50%',
-                                    background: c.bg, color: c.fg,
-                                    fontSize: 8, fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    flexShrink: 0,
-                                  }}>
-                                    {ini(member?.name || '?')}
-                                  </div>
-                                  <span style={{
-                                    fontSize: 12,
-                                    fontWeight: winA ? 600 : 400,
-                                    color: winA ? 'var(--text)' : 'var(--text-secondary)',
-                                  }}>
-                                    {member?.name || id}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                            {winA && <span style={{ fontSize: 13, paddingLeft: 2 }}>🏆</span>}
-                          </div>
+                        {/* Court label row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                            letterSpacing: '0.07em', color: 'var(--text-tertiary)',
+                          }}>
+                            Court {ci + 1}
+                          </span>
+                          {hasScore && (
+                            <span style={{
+                              fontSize: 11, fontWeight: 700,
+                              color: 'var(--text-secondary)',
+                              background: 'var(--bg-tertiary)',
+                              padding: '1px 8px', borderRadius: 6,
+                              border: '1px solid var(--border)',
+                              letterSpacing: '0.04em',
+                            }}>
+                              {m.score.a ?? '—'} – {m.score.b ?? '—'}
+                            </span>
+                          )}
                         </div>
 
-                        {/* vs */}
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', flexShrink: 0 }}>vs</span>
-
-                        {/* Team B */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-                            {teamB.map((id, i) => {
-                              const member = membersById[id];
-                              const c = col(i + 2);
-                              return (
-                                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <div style={{
-                                    width: 20, height: 20, borderRadius: '50%',
-                                    background: c.bg, color: c.fg,
-                                    fontSize: 8, fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    flexShrink: 0,
-                                  }}>
-                                    {ini(member?.name || '?')}
+                        {/* Teams side by side */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                          {/* Team A */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {teamA.map((id, i) => {
+                                const member = membersById[id];
+                                const c = col(i);
+                                return (
+                                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <div style={{
+                                      width: 20, height: 20, borderRadius: '50%',
+                                      background: c.bg, color: c.fg,
+                                      fontSize: 8, fontWeight: 700,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      flexShrink: 0,
+                                    }}>
+                                      {ini(member?.name || '?')}
+                                    </div>
+                                    <span style={{
+                                      fontSize: 12,
+                                      fontWeight: winA ? 600 : 400,
+                                      color: winA ? 'var(--text)' : 'var(--text-secondary)',
+                                    }}>
+                                      {member?.name || id}
+                                    </span>
                                   </div>
-                                  <span style={{
-                                    fontSize: 12,
-                                    fontWeight: winB ? 600 : 400,
-                                    color: winB ? 'var(--text)' : 'var(--text-secondary)',
-                                  }}>
-                                    {member?.name || id}
-                                  </span>
+                                );
+                              })}
+                              {winA && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 2 }}>
+                                  <span style={{ fontSize: 13 }}>🏆</span>
+                                  <ScoreBadge score={m.score} winner={m.winner_team} side="A" />
                                 </div>
-                              );
-                            })}
-                            {winB && <span style={{ fontSize: 13, paddingRight: 2 }}>🏆</span>}
+                              )}
+                            </div>
+                          </div>
+
+                          {/* vs */}
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)',
+                            flexShrink: 0, paddingTop: 2,
+                          }}>vs</span>
+
+                          {/* Team B */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                              {teamB.map((id, i) => {
+                                const member = membersById[id];
+                                const c = col(i + 2);
+                                return (
+                                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <div style={{
+                                      width: 20, height: 20, borderRadius: '50%',
+                                      background: c.bg, color: c.fg,
+                                      fontSize: 8, fontWeight: 700,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      flexShrink: 0,
+                                    }}>
+                                      {ini(member?.name || '?')}
+                                    </div>
+                                    <span style={{
+                                      fontSize: 12,
+                                      fontWeight: winB ? 600 : 400,
+                                      color: winB ? 'var(--text)' : 'var(--text-secondary)',
+                                    }}>
+                                      {member?.name || id}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {winB && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', paddingRight: 2 }}>
+                                  <ScoreBadge score={m.score} winner={m.winner_team} side="B" />
+                                  <span style={{ fontSize: 13 }}>🏆</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -233,11 +289,161 @@ function SessionDetail({ session, isAdmin, membersById, onDeleted }) {
   );
 }
 
+// ── Skill Estimates Panel ───────────────────────────────────────────────────
+function SkillEstimatesPanel({ teamId, members, membersById }) {
+  const [estimates, setEstimates] = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [open, setOpen]           = useState(false);
+
+  async function load() {
+    if (estimates !== null) { setOpen(v => !v); return; }
+    setLoading(true); setError('');
+    try {
+      const result = await computeSkillEstimates(teamId, membersById);
+      setEstimates(result);
+      setOpen(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const changed = estimates
+    ? members.filter(m => estimates[m.id] !== undefined && Math.abs(estimates[m.id] - m.skill) >= 0.1)
+    : [];
+
+  return (
+    <div style={{
+      background: 'var(--bg)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-lg)', marginBottom: 20, overflow: 'hidden',
+    }}>
+      <button
+        onClick={load}
+        disabled={loading}
+        style={{
+          width: '100%', padding: '13px 16px', border: 'none',
+          background: 'none', cursor: loading ? 'default' : 'pointer',
+          display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'inherit',
+        }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 'var(--radius)',
+          background: 'var(--accent-light)', color: 'var(--accent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.2">
+            <path d="M18 20V10M12 20V4M6 20v-6"/>
+          </svg>
+        </div>
+        <div style={{ flex: 1, textAlign: 'left' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+            Skill estimates from scores
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 1 }}>
+            Computed from matches where scores were recorded
+          </div>
+        </div>
+        {loading ? (
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Computing…</span>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="var(--text-tertiary)" strokeWidth="2.5"
+            style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        )}
+      </button>
+
+      {error && (
+        <div style={{ padding: '0 16px 12px', fontSize: 13, color: '#A32D2D' }}>{error}</div>
+      )}
+
+      {open && estimates && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
+          {Object.keys(estimates).length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+              No scored matches found. Record scores during play sessions to enable this.
+            </div>
+          ) : changed.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+              Current skill levels already match the score-based estimates.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                Based on score margins, the following adjustments are suggested.
+                These are estimates only — apply them manually if they look right.
+              </div>
+              {changed.map(m => {
+                const est  = estimates[m.id];
+                const diff = est - m.skill;
+                const up   = diff > 0;
+                const lab  = sl(Math.round(est));
+                return (
+                  <div key={m.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', marginBottom: 6,
+                    background: 'var(--bg-secondary)', borderRadius: 'var(--radius)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      background: 'var(--accent-light)', color: 'var(--accent)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {ini(m.name || '?')}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.name}</div>
+                    </div>
+                    {/* Current */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Current</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)' }}>{m.skill}</div>
+                    </div>
+                    {/* Arrow */}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke={up ? '#1D9E75' : '#A32D2D'} strokeWidth="2.5">
+                      <path d={up ? 'M5 12h14M12 5l7 7-7 7' : 'M19 12H5M12 19l-7-7 7-7'}/>
+                    </svg>
+                    {/* Suggested */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Suggested</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: up ? '#1D9E75' : '#A32D2D' }}>
+                        {est.toFixed(1)}
+                      </div>
+                    </div>
+                    {/* Skill label */}
+                    <span className="skill-badge" style={{ background: lab.bg, color: lab.fg }}>
+                      {lab.t}
+                    </span>
+                  </div>
+                );
+              })}
+              <div style={{
+                fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8,
+                padding: '8px 10px', background: 'var(--bg-tertiary)', borderRadius: 8,
+              }}>
+                To apply: go to the Players tab and adjust skill levels manually.
+                More scored matches will improve estimate accuracy.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main PlayHistory ────────────────────────────────────────────────────────
 export default function PlayHistory({ teamId, isAdmin, members, onBack }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading]   = useState(true);
 
-  // Build a members lookup map from the already-loaded members array
   const membersById = {};
   for (const m of (members || [])) membersById[m.id] = m;
 
@@ -260,15 +466,25 @@ export default function PlayHistory({ teamId, isAdmin, members, onBack }) {
     setSessions(prev => prev.filter(s => s.id !== deletedId));
   }
 
+  const closedSessions = sessions.filter(s => s.status === 'closed');
+
   return (
     <div>
-      {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Match History</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
           {sessions.length} session{sessions.length !== 1 ? 's' : ''}
         </div>
       </div>
+
+      {/* Skill estimates — only when there are closed sessions and the viewer is admin */}
+      {isAdmin && closedSessions.length > 0 && members.length > 0 && (
+        <SkillEstimatesPanel
+          teamId={teamId}
+          members={members}
+          membersById={membersById}
+        />
+      )}
 
       {loading ? (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14 }}>
