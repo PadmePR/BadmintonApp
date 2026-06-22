@@ -63,20 +63,30 @@ export async function startPlaying(teamMatchesId) {
 }
 
 /**
- * Record the winner and optionally the score for a match.
- * score: { a: number|null, b: number|null } | null
+ * Update ONLY the winner for a match — never touches the score column.
  */
-export async function setWinner(matchId, winnerTeam, winnerPlayers = [], score = null) {
-  const payload = {
-    winner_team: winnerTeam,
-    winner_players: winnerPlayers,
-    score: score,
-    finished_at: winnerTeam ? new Date().toISOString() : null,
-  };
-
+export async function setWinner(matchId, winnerTeam, winnerPlayers = []) {
   const { error } = await supabase
     .from('match_play_matches')
-    .update(payload)
+    .update({
+      winner_team: winnerTeam,
+      winner_players: winnerPlayers,
+      finished_at: winnerTeam ? new Date().toISOString() : null,
+    })
+    .eq('id', matchId);
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Update ONLY the score for a match — never touches the winner column.
+ * score: { a: number|null, b: number|null }
+ */
+export async function setScore(matchId, score) {
+  const { error } = await supabase
+    .from('match_play_matches')
+    .update({ score })
     .eq('id', matchId);
 
   if (error) throw error;

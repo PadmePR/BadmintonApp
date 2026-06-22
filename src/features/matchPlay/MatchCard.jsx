@@ -1,6 +1,6 @@
 // src/features/matchPlay/MatchCard.jsx
 import React, { useState, useEffect } from 'react';
-import { setWinner } from './matchPlayApi.js';
+import { setWinner, setScore } from './matchPlayApi.js';
 import { col, ini } from '../../lib/utils.js';
 
 function PlayerPill({ player, memberIndex }) {
@@ -79,6 +79,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
   const [scoreA, setScoreA] = useState(match.score?.a ?? null);
   const [scoreB, setScoreB] = useState(match.score?.b ?? null);
 
+  // Sync local score state when the match prop updates (e.g. after refresh)
   useEffect(() => {
     setScoreA(match.score?.a ?? null);
     setScoreB(match.score?.b ?? null);
@@ -90,12 +91,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
   const teamAPlayers = (match.team_a?.players ?? []).map(id => membersById[id] || { id, name: String(id) });
   const teamBPlayers = (match.team_b?.players ?? []).map(id => membersById[id] || { id, name: String(id) });
 
-  function buildScore() {
-    // Only send a score object if at least one value has been entered
-    if (scoreA === null && scoreB === null) return null;
-    return { a: scoreA, b: scoreB };
-  }
-
+  // Tapping a team only updates the winner — score is untouched
   async function pickWinner(team) {
     if (saving) return;
     const newWinner = match.winner_team === team ? null : team;
@@ -106,7 +102,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
         ? (match.team_b?.players ?? [])
         : [];
     try {
-      await setWinner(match.id, newWinner, winnerPlayers, buildScore());
+      await setWinner(match.id, newWinner, winnerPlayers);
       onWinnerSet?.();
     } catch (err) {
       console.error('Failed to set winner', err);
@@ -116,19 +112,14 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
     }
   }
 
+  // Save score button — only updates the score column, never touches winner
   async function saveScore() {
     if (saving) return;
-    const score = buildScore();
-    if (score === null) return; // nothing to save
+    if (scoreA === null && scoreB === null) return;
     setSaving(true);
-    const winnerPlayers = match.winner_team === 'A'
-      ? (match.team_a?.players ?? [])
-      : match.winner_team === 'B'
-        ? (match.team_b?.players ?? [])
-        : [];
     try {
-      await setWinner(match.id, match.winner_team ?? null, winnerPlayers, score);
-      onWinnerSet?.();
+      await setScore(match.id, { a: scoreA, b: scoreB });
+      onWinnerSet?.(); // refresh parent so score badge updates
     } catch (err) {
       alert('Failed to save score: ' + err.message);
     } finally {
@@ -136,7 +127,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
     }
   }
 
-  const winner = match.winner_team;
+  const winner   = match.winner_team;
   const hasScore = match.score && (match.score.a != null || match.score.b != null);
 
   const teamStyle = (team) => ({
@@ -174,7 +165,6 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Score toggle button */}
           <button
             onClick={() => setShowScore(v => !v)}
             style={{
