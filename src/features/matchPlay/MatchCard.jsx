@@ -22,13 +22,7 @@ function PlayerPill({ player, memberIndex }) {
   );
 }
 
-// Small integer score input — +/− buttons plus direct typing
 function ScoreInput({ value, onChange, highlight }) {
-  function handleChange(e) {
-    const raw = e.target.value.replace(/[^0-9]/g, '');
-    onChange(raw === '' ? '' : Math.min(99, parseInt(raw, 10)));
-  }
-
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 4,
@@ -38,7 +32,7 @@ function ScoreInput({ value, onChange, highlight }) {
       transition: 'background 0.15s, border-color 0.15s',
     }}>
       <button
-        onClick={() => onChange(Math.max(0, (value || 0) - 1))}
+        onClick={() => onChange(Math.max(0, (value ?? 0) - 1))}
         style={{
           width: 22, height: 22, border: 'none', borderRadius: 5,
           background: 'none', cursor: 'pointer', padding: 0,
@@ -50,8 +44,11 @@ function ScoreInput({ value, onChange, highlight }) {
       <input
         type="text"
         inputMode="numeric"
-        value={value === '' || value === null || value === undefined ? '' : String(value)}
-        onChange={handleChange}
+        value={value === null || value === undefined ? '' : String(value)}
+        onChange={e => {
+          const raw = e.target.value.replace(/[^0-9]/g, '');
+          onChange(raw === '' ? null : Math.min(99, parseInt(raw, 10)));
+        }}
         placeholder="—"
         style={{
           width: 28, border: 'none', background: 'none', outline: 'none',
@@ -61,7 +58,7 @@ function ScoreInput({ value, onChange, highlight }) {
         }}
       />
       <button
-        onClick={() => onChange(Math.min(99, (value || 0) + 1))}
+        onClick={() => onChange(Math.min(99, (value ?? 0) + 1))}
         style={{
           width: 22, height: 22, border: 'none', borderRadius: 5,
           background: 'none', cursor: 'pointer', padding: 0,
@@ -77,16 +74,14 @@ function ScoreInput({ value, onChange, highlight }) {
 export default function MatchCard({ match, courtNumber, membersById, onWinnerSet }) {
   const [saving, setSaving]       = useState(false);
   const [showScore, setShowScore] = useState(
-    // Pre-open if scores were already recorded
     !!(match.score && (match.score.a != null || match.score.b != null))
   );
-  const [scoreA, setScoreA] = useState(match.score?.a ?? '');
-  const [scoreB, setScoreB] = useState(match.score?.b ?? '');
+  const [scoreA, setScoreA] = useState(match.score?.a ?? null);
+  const [scoreB, setScoreB] = useState(match.score?.b ?? null);
 
-  // Keep local score state in sync if the match prop changes (e.g. after refresh)
   useEffect(() => {
-    setScoreA(match.score?.a ?? '');
-    setScoreB(match.score?.b ?? '');
+    setScoreA(match.score?.a ?? null);
+    setScoreB(match.score?.b ?? null);
     if (match.score && (match.score.a != null || match.score.b != null)) {
       setShowScore(true);
     }
@@ -96,10 +91,9 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
   const teamBPlayers = (match.team_b?.players ?? []).map(id => membersById[id] || { id, name: String(id) });
 
   function buildScore() {
-    const a = scoreA === '' ? null : Number(scoreA);
-    const b = scoreB === '' ? null : Number(scoreB);
-    if (a === null && b === null) return null;
-    return { a, b };
+    // Only send a score object if at least one value has been entered
+    if (scoreA === null && scoreB === null) return null;
+    return { a: scoreA, b: scoreB };
   }
 
   async function pickWinner(team) {
@@ -122,9 +116,10 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
     }
   }
 
-  // Save scores independently without changing the winner
   async function saveScore() {
     if (saving) return;
+    const score = buildScore();
+    if (score === null) return; // nothing to save
     setSaving(true);
     const winnerPlayers = match.winner_team === 'A'
       ? (match.team_a?.players ?? [])
@@ -132,7 +127,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
         ? (match.team_b?.players ?? [])
         : [];
     try {
-      await setWinner(match.id, match.winner_team ?? null, winnerPlayers, buildScore());
+      await setWinner(match.id, match.winner_team ?? null, winnerPlayers, score);
       onWinnerSet?.();
     } catch (err) {
       alert('Failed to save score: ' + err.message);
@@ -142,6 +137,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
   }
 
   const winner = match.winner_team;
+  const hasScore = match.score && (match.score.a != null || match.score.b != null);
 
   const teamStyle = (team) => ({
     flex: 1,
@@ -151,16 +147,10 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
     cursor: saving ? 'default' : 'pointer',
     userSelect: 'none',
     transition: 'background 0.15s, border-color 0.15s',
-    background: winner === team
-      ? 'var(--accent-light)'
-      : 'var(--bg-secondary)',
-    border: winner === team
-      ? '2px solid var(--accent)'
-      : '2px solid transparent',
+    background: winner === team ? 'var(--accent-light)' : 'var(--bg-secondary)',
+    border: winner === team ? '2px solid var(--accent)' : '2px solid transparent',
     opacity: winner && winner !== team ? 0.55 : 1,
   });
-
-  const hasScore = match.score && (match.score.a != null || match.score.b != null);
 
   return (
     <div style={{
@@ -169,7 +159,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
       borderRadius: 'var(--radius-lg)',
       overflow: 'hidden',
     }}>
-      {/* Court header strip */}
+      {/* Court header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 14px',
@@ -184,7 +174,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Score toggle */}
+          {/* Score toggle button */}
           <button
             onClick={() => setShowScore(v => !v)}
             style={{
@@ -192,29 +182,18 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
               cursor: 'pointer', padding: '2px 6px', borderRadius: 5,
               color: showScore ? 'var(--accent)' : 'var(--text-tertiary)',
               fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 4,
             }}
-            title={showScore ? 'Hide score' : 'Record score'}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v6l4 2"/>
-            </svg>
             {hasScore && !showScore
               ? `${match.score.a ?? '—'} – ${match.score.b ?? '—'}`
-              : showScore ? 'Hide score' : 'Score'}
+              : showScore ? 'Hide score' : '+ Score'}
           </button>
 
           {saving ? (
             <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Saving…</span>
           ) : winner ? (
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: '#1D9E75',
-              display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="3">
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#1D9E75', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               Done · tap to change
@@ -225,115 +204,85 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
         </div>
       </div>
 
-      {/* Teams row */}
+      {/* Teams */}
       <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, padding: 10 }}>
-        {/* Team A */}
-        <button
-          onClick={() => pickWinner('A')}
-          disabled={saving}
-          style={{ all: 'unset', ...teamStyle('A') }}
-        >
+        <button onClick={() => pickWinner('A')} disabled={saving} style={{ all: 'unset', ...teamStyle('A') }}>
           <div style={{
             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)',
-            marginBottom: 2,
+            color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)', marginBottom: 2,
           }}>
             Team A {winner === 'A' && '🏆'}
           </div>
-          {teamAPlayers.map((p, i) => (
-            <PlayerPill key={p.id} player={p} memberIndex={i} />
-          ))}
+          {teamAPlayers.map((p, i) => <PlayerPill key={p.id} player={p} memberIndex={i} />)}
         </button>
 
-        {/* VS divider */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: 36, flexShrink: 0,
-          fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)',
-        }}>
-          vs
-        </div>
+          width: 36, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)',
+        }}>vs</div>
 
-        {/* Team B */}
-        <button
-          onClick={() => pickWinner('B')}
-          disabled={saving}
-          style={{ all: 'unset', ...teamStyle('B') }}
-        >
+        <button onClick={() => pickWinner('B')} disabled={saving} style={{ all: 'unset', ...teamStyle('B') }}>
           <div style={{
             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)',
-            marginBottom: 2,
+            color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)', marginBottom: 2,
           }}>
             Team B {winner === 'B' && '🏆'}
           </div>
-          {teamBPlayers.map((p, i) => (
-            <PlayerPill key={p.id} player={p} memberIndex={i + 2} />
-          ))}
+          {teamBPlayers.map((p, i) => <PlayerPill key={p.id} player={p} memberIndex={i + 2} />)}
         </button>
       </div>
 
-      {/* Score panel — collapsible */}
+      {/* Score panel */}
       {showScore && (
         <div style={{
           borderTop: '1px solid var(--border)',
           padding: '10px 14px',
           background: 'var(--bg-secondary)',
-          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         }}>
-          <span style={{
-            fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
-            letterSpacing: '0.06em', color: 'var(--text-tertiary)', flexShrink: 0,
-          }}>Score</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--text-tertiary)', flexShrink: 0,
+            }}>Score</span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-            {/* Team A score */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.06em', color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)' }}>
-                Team A
-              </span>
-              <ScoreInput
-                value={scoreA}
-                onChange={setScoreA}
-                highlight={winner === 'A'}
-              />
-            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)',
+                }}>Team A</span>
+                <ScoreInput value={scoreA} onChange={setScoreA} highlight={winner === 'A'} />
+              </div>
 
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-tertiary)', marginTop: 14 }}>–</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-tertiary)', marginTop: 14 }}>–</span>
 
-            {/* Team B score */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.06em', color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)' }}>
-                Team B
-              </span>
-              <ScoreInput
-                value={scoreB}
-                onChange={setScoreB}
-                highlight={winner === 'B'}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)',
+                }}>Team B</span>
+                <ScoreInput value={scoreB} onChange={setScoreB} highlight={winner === 'B'} />
+              </div>
             </div>
 
             <button
               onClick={saveScore}
-              disabled={saving}
+              disabled={saving || (scoreA === null && scoreB === null)}
               style={{
-                marginLeft: 'auto', marginTop: 14,
-                padding: '5px 12px', border: 'none', borderRadius: 7,
+                padding: '6px 14px', border: 'none', borderRadius: 7,
                 background: 'var(--accent)', color: 'white',
-                fontSize: 12, fontWeight: 600, cursor: saving ? 'default' : 'pointer',
-                opacity: saving ? 0.6 : 1, fontFamily: 'inherit',
+                fontSize: 12, fontWeight: 600,
+                cursor: saving || (scoreA === null && scoreB === null) ? 'default' : 'pointer',
+                opacity: saving || (scoreA === null && scoreB === null) ? 0.45 : 1,
+                fontFamily: 'inherit', marginTop: 14,
               }}
             >
-              {saving ? '…' : 'Save'}
+              {saving ? '…' : 'Save score'}
             </button>
-          </div>
-
-          <div style={{ width: '100%', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-            Optional — scores are saved per match and used to refine player skill estimates.
           </div>
         </div>
       )}
