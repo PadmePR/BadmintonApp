@@ -13,10 +13,6 @@
 .match-card {
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
-.match-card:hover { transform: translateY(-4px); box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
-
-.team { cursor: pointer; padding: 12px; border-radius: 10px; }
-.team-a { background: linear-gradient(90deg,#e0f7fa,#b2ebf2); }
-.team-b { background: linear-gradient(90deg,#fff3e0,#ffe0b2); }
+.match-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
 
 .sitting-out { padding: 8px; }

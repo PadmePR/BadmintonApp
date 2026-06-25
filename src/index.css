@@ -5,6 +5,9 @@
   --text: #1a1a1a; --text-secondary: #666660; --text-tertiary: #999993;
   --border: rgba(0,0,0,0.14); --border-medium: rgba(0,0,0,0.24);
   --accent: #185FA5; --accent-light: #E6F1FB;
+  --team-a: #3C3489; --team-a-light: #EEEDFE;
+  --team-b: #633806; --team-b-light: #FAEEDA;
+  --win: #1D9E75; --win-light: #E1F5EE;
   --radius: 10px; --radius-lg: 14px;
 }
 
@@ -14,6 +17,9 @@
     --text: #f0f0ee; --text-secondary: #a0a09a; --text-tertiary: #666660;
     --border: rgba(255,255,255,0.13); --border-medium: rgba(255,255,255,0.22);
     --accent: #4A9EE8; --accent-light: #0C2A4A;
+    --team-a: #A99CF0; --team-a-light: #2A2459;
+    --team-b: #E8B84A; --team-b-light: #4A3306;
+    --win: #34C38F; --win-light: #0F3D2E;
   }
 }
 
