@@ -3,7 +3,6 @@
 import { supabase } from '../../lib/supabase.js';
 
 export async function startPlaying(teamMatchesId) {
-  // 1) fetch plan and derive team_id
   const { data: plan, error: planErr } = await supabase
     .from('team_matches')
     .select('id, team_id, rounds')
@@ -12,7 +11,6 @@ export async function startPlaying(teamMatchesId) {
   if (planErr) throw planErr;
   if (!plan || !plan.rounds) throw new Error('No generated match plan found.');
 
-  // 2) create session row
   const user = (await supabase.auth.getUser()).data?.user;
   const adminId = user?.id ?? null;
   const { data: session, error: sessErr } = await supabase
@@ -27,19 +25,13 @@ export async function startPlaying(teamMatchesId) {
     .single();
   if (sessErr) throw sessErr;
 
-  // 3) map rounds -> match_play_matches
-  // The match engine serialises rounds as:
-  //   { courts, sitting: [...], matches: [[t1_players, t2_players], ...] }
-  // where each match is a 2-element array of player-object arrays.
   const matchesToInsert = [];
   for (let roundIndex = 0; roundIndex < plan.rounds.length; roundIndex++) {
     const roundObj = plan.rounds[roundIndex];
-    const roundNumber = roundIndex + 1; // 1-based round number
+    const roundNumber = roundIndex + 1;
     const matchesArr = roundObj.matches ?? [];
     for (let mi = 0; mi < matchesArr.length; mi++) {
       const m = matchesArr[mi];
-      // Each match is either a [t1, t2] array pair (from the match engine)
-      // or an object with team_a / team_b keys.
       let t1, t2;
       if (Array.isArray(m)) {
         t1 = m[0] ?? [];
@@ -48,19 +40,12 @@ export async function startPlaying(teamMatchesId) {
         t1 = m.team_a ?? m.a ?? [];
         t2 = m.team_b ?? m.b ?? [];
       }
-      const team_a = {
-        players: (Array.isArray(t1) ? t1 : []).map(p => p.id ?? p),
-      };
-      const team_b = {
-        players: (Array.isArray(t2) ? t2 : []).map(p => p.id ?? p),
-      };
-
       matchesToInsert.push({
         session_id: session.id,
         round: roundNumber,
         match_index: mi,
-        team_a,
-        team_b,
+        team_a: { players: (Array.isArray(t1) ? t1 : []).map(p => p.id ?? p) },
+        team_b: { players: (Array.isArray(t2) ? t2 : []).map(p => p.id ?? p) },
         sitting_out: false,
       });
     }
@@ -77,17 +62,31 @@ export async function startPlaying(teamMatchesId) {
   return session;
 }
 
-export async function setWinner(matchId, winnerTeam, winnerPlayers = [], score = null) {
-  const payload = {
-    winner_team: winnerTeam,
-    winner_players: winnerPlayers,
-    score,
-    finished_at: new Date().toISOString()
-  };
-
+/**
+ * Update ONLY the winner for a match — never touches the score column.
+ */
+export async function setWinner(matchId, winnerTeam, winnerPlayers = []) {
   const { error } = await supabase
     .from('match_play_matches')
-    .update(payload)
+    .update({
+      winner_team: winnerTeam,
+      winner_players: winnerPlayers,
+      finished_at: winnerTeam ? new Date().toISOString() : null,
+    })
+    .eq('id', matchId);
+
+  if (error) throw error;
+  return true;
+}
+
+/**
+ * Update ONLY the score for a match — never touches the winner column.
+ * score: { a: number|null, b: number|null }
+ */
+export async function setScore(matchId, score) {
+  const { error } = await supabase
+    .from('match_play_matches')
+    .update({ score })
     .eq('id', matchId);
 
   if (error) throw error;
@@ -99,7 +98,6 @@ export async function closeSession(sessionId) {
     .from('match_play_sessions')
     .update({ status: 'closed', ended_at: new Date().toISOString() })
     .eq('id', sessionId);
-
   if (error) throw error;
   return true;
 }
@@ -136,7 +134,6 @@ export async function fetchTeamMembers(teamId) {
 }
 
 export async function deleteSession(sessionId) {
-  // match_play_matches rows cascade-delete via FK
   const { error } = await supabase
     .from('match_play_sessions')
     .delete()
