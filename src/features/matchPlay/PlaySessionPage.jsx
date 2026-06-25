@@ -104,31 +104,6 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
         </button>
       </div>
 
-      {/* ── Progress bar ── */}
-      {totalCount > 0 && (
-        <div style={{
-          marginBottom: 20, padding: '12px 14px', borderRadius: 'var(--radius)',
-          background: allDone ? 'var(--win-light)' : 'var(--accent-light)',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: allDone ? 'var(--win)' : 'var(--accent)' }}>
-              Round {currentRound} of {rounds.length}
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: allDone ? 'var(--win)' : 'var(--accent)' }}>
-              {allDone ? '✓ ' : ''}{doneCount}/{totalCount} courts done
-            </span>
-          </div>
-          <div style={{ height: 6, borderRadius: 3, background: 'var(--bg)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 3,
-              background: allDone ? 'var(--win)' : 'var(--accent)',
-              width: `${totalCount ? (doneCount / totalCount) * 100 : 0}%`,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-        </div>
-      )}
-
       {/* ── Round nav — prev / label / next only, no tab scroll ── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
