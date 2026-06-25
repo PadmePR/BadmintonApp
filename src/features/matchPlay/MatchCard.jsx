@@ -3,6 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { setWinner, setScore } from './matchPlayApi.js';
 import { col, ini } from '../../lib/utils.js';
 
+const COURT_COLORS = [
+  { bg: 'linear-gradient(135deg, #E6F1FB, #B5D4F4)', fg: '#0C447C' },
+  { bg: 'linear-gradient(135deg, #EAF3DE, #C0DD97)', fg: '#27500A' },
+  { bg: 'linear-gradient(135deg, #FBEAF0, #F5C7D9)', fg: '#72243E' },
+];
+function courtColor(i) { return COURT_COLORS[i % COURT_COLORS.length]; }
+
 function PlayerPill({ player, memberIndex }) {
   const c = col(memberIndex);
   return (
@@ -22,12 +29,12 @@ function PlayerPill({ player, memberIndex }) {
   );
 }
 
-function ScoreInput({ value, onChange, highlight }) {
+function ScoreInput({ value, onChange, highlight, color, colorLight }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 4,
-      background: highlight ? 'var(--accent-light)' : 'var(--bg-tertiary)',
-      border: `1.5px solid ${highlight ? 'var(--accent)' : 'var(--border-medium)'}`,
+      background: highlight ? colorLight : 'var(--bg-tertiary)',
+      border: `1.5px solid ${highlight ? color : 'var(--border-medium)'}`,
       borderRadius: 8, padding: '3px 4px',
       transition: 'background 0.15s, border-color 0.15s',
     }}>
@@ -53,7 +60,7 @@ function ScoreInput({ value, onChange, highlight }) {
         style={{
           width: 28, border: 'none', background: 'none', outline: 'none',
           textAlign: 'center', fontSize: 14, fontWeight: 700,
-          color: highlight ? 'var(--accent)' : 'var(--text)',
+          color: highlight ? color : 'var(--text)',
           fontFamily: 'inherit', padding: 0,
         }}
       />
@@ -130,6 +137,9 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
   const winner   = match.winner_team;
   const hasScore = match.score && (match.score.a != null || match.score.b != null);
 
+  const teamColor = (team) => team === 'A' ? 'var(--team-a)' : 'var(--team-b)';
+  const teamColorLight = (team) => team === 'A' ? 'var(--team-a-light)' : 'var(--team-b-light)';
+
   const teamStyle = (team) => ({
     flex: 1,
     display: 'flex', flexDirection: 'column', gap: 8,
@@ -137,18 +147,23 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
     borderRadius: 'var(--radius)',
     cursor: saving ? 'default' : 'pointer',
     userSelect: 'none',
-    transition: 'background 0.15s, border-color 0.15s',
-    background: winner === team ? 'var(--accent-light)' : 'var(--bg-secondary)',
-    border: winner === team ? '2px solid var(--accent)' : '2px solid transparent',
-    opacity: winner && winner !== team ? 0.55 : 1,
+    transition: 'background 0.15s, border-color 0.15s, box-shadow 0.15s',
+    background: winner === team ? teamColorLight(team) : 'var(--bg-secondary)',
+    border: winner === team ? `2px solid ${teamColor(team)}` : '2px solid transparent',
+    borderLeft: `4px solid ${teamColor(team)}`,
+    boxShadow: winner === team ? `0 2px 10px ${teamColorLight(team)}` : 'none',
+    opacity: winner && winner !== team ? 0.5 : 1,
   });
 
+  const cc = courtColor(courtNumber - 1);
+
   return (
-    <div style={{
+    <div className="match-card" style={{
       background: 'var(--bg)',
       border: '1px solid var(--border)',
       borderRadius: 'var(--radius-lg)',
       overflow: 'hidden',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
     }}>
       {/* Court header */}
       <div style={{
@@ -159,7 +174,8 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
       }}>
         <span style={{
           fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-          letterSpacing: '0.07em', color: 'var(--text-tertiary)',
+          letterSpacing: '0.07em', color: cc.fg,
+          background: cc.bg, padding: '3px 10px', borderRadius: 20,
         }}>
           Court {courtNumber}
         </span>
@@ -182,7 +198,7 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
           {saving ? (
             <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Saving…</span>
           ) : winner ? (
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#1D9E75', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--win)', display: 'flex', alignItems: 'center', gap: 4 }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
@@ -195,12 +211,12 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
       </div>
 
       {/* Teams */}
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, padding: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, padding: 10 }}>
         <button onClick={() => pickWinner('A')} disabled={saving} style={{ all: 'unset', ...teamStyle('A') }}>
           <div style={{
             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)', marginBottom: 2,
+            color: 'var(--team-a)', marginBottom: 2,
           }}>
             Team A {winner === 'A' && '🏆'}
           </div>
@@ -209,14 +225,16 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
 
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: 36, flexShrink: 0, fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)',
+          width: 30, height: 30, margin: 'auto 0', flexShrink: 0, fontSize: 10, fontWeight: 700,
+          color: 'var(--text-tertiary)', borderRadius: '50%',
+          background: 'linear-gradient(135deg, var(--team-a-light), var(--team-b-light))',
         }}>vs</div>
 
         <button onClick={() => pickWinner('B')} disabled={saving} style={{ all: 'unset', ...teamStyle('B') }}>
           <div style={{
             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.08em',
-            color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)', marginBottom: 2,
+            color: 'var(--team-b)', marginBottom: 2,
           }}>
             Team B {winner === 'B' && '🏆'}
           </div>
@@ -242,9 +260,10 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
                 <span style={{
                   fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: winner === 'A' ? 'var(--accent)' : 'var(--text-tertiary)',
+                  color: 'var(--team-a)',
                 }}>Team A</span>
-                <ScoreInput value={scoreA} onChange={setScoreA} highlight={winner === 'A'} />
+                <ScoreInput value={scoreA} onChange={setScoreA} highlight={winner === 'A'}
+                  color="var(--team-a)" colorLight="var(--team-a-light)" />
               </div>
 
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-tertiary)', marginTop: 14 }}>–</span>
@@ -253,9 +272,10 @@ export default function MatchCard({ match, courtNumber, membersById, onWinnerSet
                 <span style={{
                   fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
                   letterSpacing: '0.06em',
-                  color: winner === 'B' ? 'var(--accent)' : 'var(--text-tertiary)',
+                  color: 'var(--team-b)',
                 }}>Team B</span>
-                <ScoreInput value={scoreB} onChange={setScoreB} highlight={winner === 'B'} />
+                <ScoreInput value={scoreB} onChange={setScoreB} highlight={winner === 'B'}
+                  color="var(--team-b)" colorLight="var(--team-b-light)" />
               </div>
             </div>
 

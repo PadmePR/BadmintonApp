@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { fetchSessionMatches, fetchTeamMembers, closeSession as apiCloseSession } from './matchPlayApi.js';
 import { col, ini } from '../../lib/utils.js';
 import MatchCard from './MatchCard.jsx';
+import './play.css';
 
 export default function PlaySessionPage({ sessionId, teamId, onClose }) {
   const [matches, setMatches]           = useState([]);
@@ -80,35 +81,47 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
   return (
     <div>
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
+        padding: '16px 18px', borderRadius: 'var(--radius-lg)',
+        background: 'linear-gradient(135deg, var(--accent), var(--team-a))',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+      }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>🏸 Play Mode</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#fff' }}>🏸 Play Mode</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
             {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
 
-        <button className="btn-danger" onClick={handleClose} disabled={closing}
-          style={{ fontSize: 13, padding: '8px 14px' }}>
+        <button onClick={handleClose} disabled={closing}
+          style={{
+            fontSize: 13, fontWeight: 600, padding: '8px 14px',
+            border: '1px solid rgba(255,255,255,0.5)', borderRadius: 'var(--radius)',
+            background: 'rgba(255,255,255,0.12)', color: '#fff',
+          }}>
           {closing ? 'Ending…' : 'End Session'}
         </button>
       </div>
 
       {/* ── Progress bar ── */}
       {totalCount > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
+        <div style={{
+          marginBottom: 20, padding: '12px 14px', borderRadius: 'var(--radius)',
+          background: allDone ? 'var(--win-light)' : 'var(--accent-light)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: allDone ? 'var(--win)' : 'var(--accent)' }}>
               Round {currentRound} of {rounds.length}
             </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: allDone ? '#1D9E75' : 'var(--text-secondary)' }}>
-              {doneCount}/{totalCount} courts done
+            <span style={{ fontSize: 12, fontWeight: 700, color: allDone ? 'var(--win)' : 'var(--accent)' }}>
+              {allDone ? '✓ ' : ''}{doneCount}/{totalCount} courts done
             </span>
           </div>
-          <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--bg)', overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 3,
-              background: allDone ? '#1D9E75' : 'var(--accent)',
+              background: allDone ? 'var(--win)' : 'var(--accent)',
               width: `${totalCount ? (doneCount / totalCount) * 100 : 0}%`,
               transition: 'width 0.4s ease',
             }} />
@@ -127,7 +140,7 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
           disabled={roundIndex <= 0}
           style={{
             width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border-medium)',
-            background: 'none', cursor: roundIndex <= 0 ? 'default' : 'pointer',
+            background: 'none', color: 'var(--text-secondary)', cursor: roundIndex <= 0 ? 'default' : 'pointer',
             opacity: roundIndex <= 0 ? 0.35 : 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}
@@ -137,11 +150,22 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
           </svg>
         </button>
 
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Round {currentRound}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
-            {totalCount} court{totalCount !== 1 ? 's' : ''}
-            {allDone ? ' · ✓ All done' : ''}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+            Round {currentRound}
+            <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)' }}>
+              {' '}· {totalCount} court{totalCount !== 1 ? 's' : ''}{allDone ? ' · ✓' : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            {rounds.map(r => (
+              <span key={r} style={{
+                width: r === currentRound ? 8 : 6, height: r === currentRound ? 8 : 6,
+                borderRadius: '50%', flexShrink: 0,
+                background: r === currentRound ? 'var(--accent)' : 'var(--border-medium)',
+                transition: 'all 0.15s',
+              }} />
+            ))}
           </div>
         </div>
 
@@ -150,7 +174,7 @@ export default function PlaySessionPage({ sessionId, teamId, onClose }) {
           disabled={roundIndex >= rounds.length - 1}
           style={{
             width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border-medium)',
-            background: 'none', cursor: roundIndex >= rounds.length - 1 ? 'default' : 'pointer',
+            background: 'none', color: 'var(--text-secondary)', cursor: roundIndex >= rounds.length - 1 ? 'default' : 'pointer',
             opacity: roundIndex >= rounds.length - 1 ? 0.35 : 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}
